@@ -1,1 +1,1 @@
-"# CrossChainProofOfHumanity" 
+# CrossChainProofOfHumanity
