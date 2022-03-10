@@ -11,3 +11,6 @@ cache
 artifacts
 
 typechain-types
+
+yarn.lock
+yarn-error.log
