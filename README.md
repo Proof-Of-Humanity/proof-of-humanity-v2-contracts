@@ -2,7 +2,7 @@
 
 Smart contracts for the cross-chain version of Proof-of-Humanity
 
-In order to test run (will also compile the contracts):
+In order to test (will also compile the contracts) run:
 
 ```shell
 npx hardhat test

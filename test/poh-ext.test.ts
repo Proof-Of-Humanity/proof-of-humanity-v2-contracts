@@ -72,7 +72,7 @@ const clearingMetaEvidence = "clearingMetaEvidence.json";
 
 let startingTimestamp: number;
 
-describe("ProofOfHumanity", () => {
+describe("ProofOfHumanityExtended (interacting with old contract)", () => {
   beforeEach("Initializing the contracts", async () => {
     [governor, requester, requester2, challenger1, challenger2, voucher1, voucher2, voucher3, voucher4, other, other2] =
       await ethers.getSigners();
