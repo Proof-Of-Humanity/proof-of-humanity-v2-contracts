@@ -2,13 +2,17 @@
 
 Smart contracts for the cross-chain version of Proof-of-Humanity
 
-In order to test (will also compile the contracts) run:
+### Install dependencies
+```shell
+yarn
+```
 
+### Test contracts (will also compile them)
 ```shell
 npx hardhat test
 ```
 
-In order to only compile the contracts run:
+### Compile contracts
 ```shell
 npx hardhat compile
 ```
