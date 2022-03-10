@@ -1,12 +1,12 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { AddressZero } from "@ethersproject/constants";
-import { expectEvent, expectRevert, getCurrentTimestamp, increaseTime } from "../utils/test-helpers";
+import { AddressZero, Zero, One, Two } from "@ethersproject/constants";
+import { expectEvent, expectRevert, getCurrentTimestamp, increaseTime, checkContract } from "../utils/test-helpers";
 import { MockArbitrator, MockArbitrator__factory, ProofOfHumanity, ProofOfHumanity__factory } from "../typechain-types";
 import { BigNumber, BigNumberish } from "ethers";
 import { Party, Reason, Status } from "../utils/enums";
-import { ArbitratorData, ChallengeInfo, DisputeData, RequestInfo, RoundInfo, SubmissionInfo } from "../utils/types";
+import { RoundInfo } from "../utils/types";
 
 let arbitrator: MockArbitrator;
 let [poh]: ProofOfHumanity[] = [];
@@ -109,7 +109,7 @@ describe("ProofOfHumanity", () => {
 
     await checkArbitratorDataList(0).for({
       arbitrator: arbitrator.address,
-      metaEvidenceUpdates: 0,
+      metaEvidenceUpdates: Zero,
       arbitratorExtraData,
     });
     expect(await poh.getArbitratorDataListCount()).to.equal(1);
@@ -121,12 +121,12 @@ describe("ProofOfHumanity", () => {
     await checkSubmissionInfo(voucher1.address).for({
       registered: true,
       status: Status.None,
-      submissionTime: startingTimestamp,
+      submissionTime: BigNumber.from(startingTimestamp),
     });
     await checkSubmissionInfo(voucher2.address).for({
       registered: true,
       status: Status.None,
-      submissionTime: startingTimestamp,
+      submissionTime: BigNumber.from(startingTimestamp),
     });
 
     await poh.connect(governor).removeSubmissionManually(voucher2.address);
@@ -156,7 +156,7 @@ describe("ProofOfHumanity", () => {
     await checkSubmissionInfo(requester.address).for({
       registered: false,
       status: Status.Vouching,
-      numberOfRequests: 1,
+      numberOfRequests: One,
     });
     await checkRequestInfo(requester.address, 0).for({ arbitratorDataID: 1, requester: AddressZero });
 
@@ -258,7 +258,7 @@ describe("ProofOfHumanity", () => {
 
     await checkSubmissionInfo(voucher1.address).for({
       status: Status.PendingRemoval,
-      numberOfRequests: 1,
+      numberOfRequests: One,
       registered: true,
     });
     await checkRoundInfo(voucher1.address, 0, 0, 0).for({
@@ -300,7 +300,11 @@ describe("ProofOfHumanity", () => {
 
     await poh.connect(voucher1).reapplySubmission(".json", "");
 
-    await checkSubmissionInfo(voucher1.address).for({ status: Status.Vouching, numberOfRequests: 1, registered: true });
+    await checkSubmissionInfo(voucher1.address).for({
+      status: Status.Vouching,
+      numberOfRequests: One,
+      registered: true,
+    });
     await expectRevert(poh.connect(other).reapplySubmission(".json", ""), "Wrong status");
 
     // Check that it's not possible to reapply 2nd time.
@@ -604,10 +608,10 @@ describe("ProofOfHumanity", () => {
     await checkChallengeInfo(requester.address, 0, 0).for({
       lastRoundID: 1,
       challenger: challenger1.address,
-      disputeID: 1,
-      duplicateSubmissionChainID: 0,
+      disputeID: One,
+      duplicateSubmissionChainID: Zero,
     });
-    await checkDisputeData(arbitrator.address, 1).for({ challengeID: 0, submissionID: requester.address });
+    await checkDisputeData(arbitrator.address, 1).for({ challengeID: Zero, submissionID: requester.address });
     await checkRoundInfo(requester.address, 0, 0, 0).for({
       paidFeesForChallenger: 1000,
       sideFunded: Party.None,
@@ -702,18 +706,18 @@ describe("ProofOfHumanity", () => {
     await checkChallengeInfo(requester.address, 0, 0).for({
       lastRoundID: 1,
       challenger: challenger1.address,
-      disputeID: 1,
-      duplicateSubmissionChainID: 1,
+      disputeID: One,
+      duplicateSubmissionChainID: One,
     });
-    await checkDisputeData(arbitrator.address, 1).for({ challengeID: 0, submissionID: requester.address });
+    await checkDisputeData(arbitrator.address, 1).for({ challengeID: Zero, submissionID: requester.address });
 
     await checkChallengeInfo(requester.address, 0, 1).for({
       lastRoundID: 1,
       challenger: challenger2.address,
-      disputeID: 2,
-      duplicateSubmissionChainID: 1,
+      disputeID: Two,
+      duplicateSubmissionChainID: One,
     });
-    await checkDisputeData(arbitrator.address, 2).for({ challengeID: 1, submissionID: requester.address });
+    await checkDisputeData(arbitrator.address, 2).for({ challengeID: One, submissionID: requester.address });
 
     await checkRoundInfo(requester.address, 0, 0, 0).for({ feeRewards: 6000 });
     await checkRoundInfo(requester.address, 0, 1, 0).for({ feeRewards: 0 }); // The second challenge doesn't count the requester's payment, so feeRewards should stay 0.
@@ -975,7 +979,7 @@ describe("ProofOfHumanity", () => {
     await checkRequestInfo(requester.address, 0).for({ resolved: false, lastChallengeID: 4, usedReasons: 7 });
 
     // Check the data of a random challenge as well.
-    await checkChallengeInfo(requester.address, 0, 3).for({ disputeID: 4, ruling: Party.Requester });
+    await checkChallengeInfo(requester.address, 0, 3).for({ disputeID: BigNumber.from(4), ruling: Party.Requester });
 
     await poh
       .connect(challenger2)
@@ -1375,7 +1379,7 @@ describe("ProofOfHumanity", () => {
       "Must be governor" // Check that the old governor can't change variables anymore.
     );
     await poh.connect(other).changeMetaEvidence("1", "2");
-    await checkArbitratorDataList(1).for({ metaEvidenceUpdates: 1 });
+    await checkArbitratorDataList(1).for({ metaEvidenceUpdates: One });
     expect(await poh.getArbitratorDataListCount(), "Incorrect arbitratorData length").to.equal(2);
     // arbitrator
     await expectRevert(poh.connect(governor).changeArbitrator(governor.address, "0xff"), "Must be governor");
@@ -1421,6 +1425,17 @@ describe("ProofOfHumanity", () => {
   });
 });
 
+const checkSubmissionInfo = (...params: Parameters<ProofOfHumanity["getSubmissionInfo"]>) =>
+  checkContract(poh, "getSubmissionInfo")(...params);
+const checkRequestInfo = (...params: Parameters<ProofOfHumanity["getRequestInfo"]>) =>
+  checkContract(poh, "getRequestInfo")(...params);
+const checkArbitratorDataList = (...params: Parameters<ProofOfHumanity["arbitratorDataList"]>) =>
+  checkContract(poh, "arbitratorDataList")(...params);
+const checkChallengeInfo = (...params: Parameters<ProofOfHumanity["getChallengeInfo"]>) =>
+  checkContract(poh, "getChallengeInfo")(...params);
+const checkDisputeData = (...params: Parameters<ProofOfHumanity["arbitratorDisputeIDToDisputeData"]>) =>
+  checkContract(poh, "arbitratorDisputeIDToDisputeData")(...params);
+
 const checkRoundInfo = (...args: Parameters<ProofOfHumanity["getRoundInfo"]>) => ({
   async for(argsToCheck: RoundInfo) {
     const round = await poh.getRoundInfo(...args);
@@ -1436,53 +1451,6 @@ const checkRoundInfo = (...args: Parameters<ProofOfHumanity["getRoundInfo"]>) =>
           (argsToCheck as any)[arg]
         );
       }
-    }
-  },
-});
-
-const checkSubmissionInfo = (submissionID: string) => ({
-  async for(argsToCheck: SubmissionInfo) {
-    const submission = await poh.getSubmissionInfo(submissionID);
-    for (const arg in argsToCheck) {
-      expect(submission[arg as any], `Submission has incorrect ${arg}`).to.equal((argsToCheck as any)[arg]);
-    }
-  },
-});
-
-const checkRequestInfo = (...args: Parameters<ProofOfHumanity["getRequestInfo"]>) => ({
-  async for(argsToCheck: RequestInfo) {
-    const request = await poh.getRequestInfo(...args);
-    for (const arg in argsToCheck) {
-      expect(request[arg as any], `Request has incorrect ${arg}`).to.equal((argsToCheck as any)[arg]);
-    }
-  },
-});
-
-const checkArbitratorDataList = (index: number) => ({
-  async for(argsToCheck: ArbitratorData) {
-    const arbitratorData = await poh.arbitratorDataList(index);
-    for (const arg in argsToCheck) {
-      expect(arbitratorData[arg as any], `ArbitratorData has incorrect ${arg}`).to.equal((argsToCheck as any)[arg]);
-    }
-  },
-});
-
-const checkChallengeInfo = (...args: Parameters<ProofOfHumanity["getChallengeInfo"]>) => ({
-  async for(argsToCheck: ChallengeInfo) {
-    const round = await poh.getChallengeInfo(...args);
-    for (const arg in argsToCheck) {
-      expect(round[arg as any], `Argument '${arg}' has not been registered correctly`).to.equal(
-        (argsToCheck as any)[arg]
-      );
-    }
-  },
-});
-
-const checkDisputeData = (arbitrator: string, disputeID: number) => ({
-  async for(argsToCheck: DisputeData) {
-    const arbitratorData = await poh.arbitratorDisputeIDToDisputeData(arbitrator, disputeID);
-    for (const arg in argsToCheck) {
-      expect(arbitratorData[arg as any], `DisputeData has incorrect ${arg}`).to.equal((argsToCheck as any)[arg]);
     }
   },
 });

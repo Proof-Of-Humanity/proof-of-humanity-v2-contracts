@@ -1,7 +1,6 @@
 import { expect } from "chai";
-import { BigNumberish, ContractReceipt, ContractTransaction, Event } from "ethers";
+import { Contract, ContractReceipt } from "ethers";
 import { ethers } from "hardhat";
-import { ProofOfHumanity } from "../typechain-types";
 
 export const expectRevert = async (promise: Promise<any>, expectedError: string) => {
   try {
@@ -36,15 +35,13 @@ export const increaseTime = async (amount: number) =>
   await ethers.provider.send("evm_mine", [(await getCurrentTimestamp()) + amount]);
 // await ethers.provider.send("evm_increaseTime", [amount]);
 
-interface DisputeData {
-  challengeID?: BigNumberish;
-  submissionID?: string;
-}
-
-export const attachHelpers = (poh: ProofOfHumanity) => {
-  poh.attach.prototype.checkDisputeData = async function () {
-    console.log(await this.getArbitratorDataListCount());
-    return { for() {} };
-  };
-  // poh.attach.bind(poh.attach.prototype.checkDisputeData);
-};
+export const checkContract =
+  <C extends Contract, F extends keyof C["callStatic"]>(contract: C, method: F) =>
+  (...args: Parameters<C[F]>) => ({
+    async for(argsToCheck: Partial<Awaited<ReturnType<C[F]>>>) {
+      const entity = await contract[method](...args);
+      for (const arg in argsToCheck) {
+        expect(entity[arg], `Calling '${method}' returned incorrect '${arg}' parameter`).to.equal(argsToCheck[arg]);
+      }
+    },
+  });
