@@ -278,7 +278,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         requiredNumberOfVouches = _requiredNumberOfVouches;
 
         arbitratorDataList.push();
-        ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
+        ArbitratorData storage arbitratorData = arbitratorDataList[0];
         arbitratorData.arbitrator = _arbitrator;
         arbitratorData.arbitratorExtraData = _arbitratorExtraData;
         emit ArbitratorComplete(
@@ -586,12 +586,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         Submission storage submission = submissions[_submissionID];
         require(submission.status == Status.Vouching, "Wrong status");
         Request storage request = submission.requests[submission.requests.length - 1];
-
-        {
-            Challenge storage challenge = request.challenges[0];
-            Round storage round = challenge.rounds[0];
-            require(round.sideFunded == Party.Requester, "Requester is not funded");
-        }
+        require(request.challenges[0].rounds[0].sideFunded == Party.Requester, "Requester is not funded");
 
         uint256 timeOffset = block.timestamp - submissionDuration; // Precompute the offset before the loop for efficiency and then compare it with the submission time to check the expiration.
 
@@ -699,20 +694,18 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         }
 
         ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
-        {
-            Round storage round = challenge.rounds[0];
-            uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
-            contribute(round, Party.Challenger, payable(msg.sender), msg.value, arbitrationCost);
-            require(round.paidFees[uint256(Party.Challenger)] >= arbitrationCost, "You must fully fund your side");
-            round.feeRewards = round.feeRewards.subCap(arbitrationCost);
-            round.sideFunded = Party.None; // Set this back to 0, since it's no longer relevant as the new round is created.
+        Round storage round = challenge.rounds[0];
+        uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
+        contribute(round, Party.Challenger, payable(msg.sender), msg.value, arbitrationCost);
+        require(round.paidFees[uint256(Party.Challenger)] >= arbitrationCost, "You must fully fund your side");
+        round.feeRewards = round.feeRewards.subCap(arbitrationCost);
+        round.sideFunded = Party.None; // Set this back to 0, since it's no longer relevant as the new round is created.
 
-            challenge.disputeID = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
-                RULING_OPTIONS,
-                arbitratorData.arbitratorExtraData
-            );
-            challenge.challenger = payable(msg.sender);
-        }
+        challenge.disputeID = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
+            RULING_OPTIONS,
+            arbitratorData.arbitratorExtraData
+        );
+        challenge.challenger = payable(msg.sender);
 
         DisputeData storage disputeData = arbitratorDisputeIDToDisputeData[address(arbitratorData.arbitrator)][
             challenge.disputeID
@@ -722,11 +715,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
 
         request.disputed = true;
         request.nbParallelDisputes++;
-
         challenge.lastRoundID++;
+        request.lastChallengeID++;
+
         emit SubmissionChallenged(_submissionID, submission.requests.length - 1, disputeData.challengeID);
 
-        request.lastChallengeID++;
+        uint256 evidenceGroupID = submission.requests.length - 1 + uint256(uint160(_submissionID));
 
         emit Dispute(
             arbitratorData.arbitrator,
@@ -734,16 +728,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
             submission.status == Status.PendingRegistration
                 ? 2 * arbitratorData.metaEvidenceUpdates
                 : 2 * arbitratorData.metaEvidenceUpdates + 1,
-            submission.requests.length - 1 + uint256(uint160(_submissionID))
+            evidenceGroupID
         );
 
         if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorData.arbitrator,
-                submission.requests.length - 1 + uint256(uint160(_submissionID)),
-                msg.sender,
-                _evidence
-            );
+            emit Evidence(arbitratorData.arbitrator, evidenceGroupID, msg.sender, _evidence);
     }
 
     /** @dev Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
