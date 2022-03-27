@@ -303,6 +303,7 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
      */
     function addSubmissionManually(address _submissionID, uint64 _submissionTime) external onlyGovernor {
         Submission storage submission = submissions[_submissionID];
+        require(submission.registered && submission.status == Status.None, "Wrong status");
         if (submission.submissionTime == 0) submissionCounter++;
         submission.registered = true;
         submission.submissionTime = _submissionTime;
@@ -604,6 +605,7 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
      *  @param _submissionID The address of the submission which request to challenge.
      *  @param _reason The reason to challenge the request. Left empty for removal requests.
      *  @param _duplicateID The address of a supposed duplicate submission. Ignored if the reason is not Duplicate.
+     *  @param _duplicateChainID The chainID of the supposed duplicate submission. Ignored if the reason is not Duplicate.
      *  @param _evidence A link to evidence using its URI. Ignored if not provided.
      */
     function challengeRequest(
@@ -890,8 +892,7 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
         }
         round.contributions[_beneficiary][uint256(Party.Requester)] = 0;
         round.contributions[_beneficiary][uint256(Party.Challenger)] = 0;
-        (bool sent, ) = _beneficiary.call{value: reward}("");
-        require(sent, "Failed to send Ether");
+        _beneficiary.send(reward);
     }
 
     /** @dev Give a ruling for a dispute. Can only be called by the arbitrator. TRUSTED.
@@ -1017,10 +1018,7 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
         _round.paidFees[uint256(_side)] += contribution;
         _round.feeRewards += contribution;
 
-        if (remainingETH != 0) {
-            (bool sent, ) = _contributor.call{value: remainingETH}("");
-            require(sent, "Failed to send Ether");
-        }
+        if (remainingETH != 0) _contributor.send(remainingETH);
 
         return contribution;
     }
@@ -1080,7 +1078,8 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
                     submission.status = Status.None;
                     request.resolved = true;
                 }
-                // Store the challenger that made the requester lose. Update the challenger if there is a duplicate with lower submission time, which is indicated by submission's index.
+                // Store the challenger that made the requester lose. Update the challenger if there is a duplicate on mainnet.
+                // This is done in order to incentivize challengers to search for duplicates among older submissions.
                 if (
                     _winner == Party.Challenger &&
                     (request.ultimateChallenger == address(0x0) ||
@@ -1097,10 +1096,10 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
         emit ChallengeResolved(_submissionID, requestID, _challengeID);
     }
 
-    /** @dev Return true if the vouch is vouch is valid.
+    /** @dev Return true if the vouch is valid.
      *  @param _voucherAddress The address of the voucher.
      *  @param _vouchedSubmissionID The address of the vouched submission.
-     *  @param _timeOffset Precalculated offset between times.
+     *  @param _timeOffset Precalculated offset for submission timeout.
      */
     function isVouchValid(
         address _voucherAddress,

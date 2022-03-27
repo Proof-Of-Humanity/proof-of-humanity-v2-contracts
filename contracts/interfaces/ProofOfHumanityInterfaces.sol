@@ -21,28 +21,9 @@ interface IProofOfHumanityOld is IProofOfHumanityBase {
 
     function removeSubmissionManually(address _submissionID) external;
 
-    function changeSubmissionBaseDeposit(uint256 _submissionBaseDeposit) external;
-
-    function changeDurations(
-        uint64 _submissionDuration,
-        uint64 _renewalPeriodDuration,
-        uint64 _challengePeriodDuration
-    ) external;
-
-    function changeRequiredNumberOfVouches(uint64 _requiredNumberOfVouches) external;
-
-    function changeSharedStakeMultiplier(uint256 _sharedStakeMultiplier) external;
-
-    function changeWinnerStakeMultiplier(uint256 _winnerStakeMultiplier) external;
-
-    function changeLoserStakeMultiplier(uint256 _loserStakeMultiplier) external;
-
-    function changeMetaEvidence(string calldata _registrationMetaEvidence, string calldata _clearingMetaEvidence)
-        external;
-
-    function changeArbitrator(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) external;
-
     /* Views */
+
+    function vouches(address voucherID, address submissionID) external view returns (bool);
 
     function getSubmissionInfo(address _submissionID)
         external

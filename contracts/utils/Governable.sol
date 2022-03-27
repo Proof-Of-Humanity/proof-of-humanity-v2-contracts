@@ -5,7 +5,7 @@ pragma solidity ^0.8;
  *  @dev The Governable contract has an governor address, and provides basic authorization control
  *  functions, this simplifies the implementation of "user permissions".
  */
-contract Governable {
+abstract contract Governable {
     /// @dev The address that can make governance changes to the parameters of the contract.
     address public governor = msg.sender;
 

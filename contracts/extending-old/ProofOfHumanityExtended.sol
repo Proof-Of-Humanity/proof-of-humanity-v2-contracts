@@ -67,16 +67,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         Request[] requests; // List of status change requests made for the submission.
     }
 
-    /** Slightly smaller version of Submission struct, but without requests array.
-     *  Used when interacting with submissions on old contract for convenience and to use memory instead of storage.
-     */
-    struct SubmissionOnOld {
-        Status status; // The current status of the submission.
-        bool registered; // Whether the submission is in the registry or not. Note that a registered submission won't have privileges (e.g. vouching) if its duration expired.
-        bool hasVouched; // True if this submission used its vouch for another submission. This is set back to false once the vouch is processed.
-        uint64 submissionTime; // The time when the submission was accepted to the list.
-    }
-
     struct Request {
         bool disputed; // True if a dispute was raised. Note that the request can enter disputed state multiple times, once per reason.
         bool resolved; // True if the request is executed and/or all raised disputes are resolved.
@@ -149,7 +139,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
 
     ArbitratorData[] public arbitratorDataList; // Stores the arbitrator data of the contract. Updated each time the data is changed.
 
-    mapping(address => Submission) public submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
+    mapping(address => Submission) private submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
     mapping(address => mapping(address => bool)) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID].
     mapping(address => mapping(uint256 => DisputeData)) public arbitratorDisputeIDToDisputeData; // Maps a dispute ID with its data. arbitratorDisputeIDToDisputeData[arbitrator][disputeID].
 
@@ -240,6 +230,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
     );
 
     /** @dev Constructor.
+     *  @param _oldProofOfHumanity The old version of ProofOfHumanity on the mainnet.
      *  @param _arbitrator The trusted arbitrator to resolve potential disputes.
      *  @param _arbitratorExtraData Extra data for the trusted arbitrator contract.
      *  @param _registrationMetaEvidence The URI of the meta evidence object for registration requests.
@@ -311,6 +302,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      */
     function addSubmissionManually(address _submissionID, uint64 _submissionTime) external override onlyGovernor {
         Submission storage submission = submissions[_submissionID];
+        require(submission.registered && submission.status == Status.None, "Wrong status");
         if (submission.submissionTime == 0) submissionCounter++;
         submission.registered = true;
         submission.submissionTime = _submissionTime;
@@ -321,18 +313,14 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      */
     function removeSubmissionManually(address _submissionID) external override onlyGovernor {
         Submission storage submission = submissions[_submissionID];
-        if (submission.registered && submission.status == Status.None) {
-            submission.registered = false;
-        } else {
-            oldProofOfHumanity.removeSubmissionManually(_submissionID);
-        }
+        if (submission.registered && submission.status == Status.None) submission.registered = false;
+        else oldProofOfHumanity.removeSubmissionManually(_submissionID);
     }
 
     /** @dev Change the base amount required as a deposit to make a request for a submission.
      *  @param _submissionBaseDeposit The new base amount of wei required to make a new request.
      */
     function changeSubmissionBaseDeposit(uint256 _submissionBaseDeposit) external onlyGovernor {
-        oldProofOfHumanity.changeSubmissionBaseDeposit(_submissionBaseDeposit);
         submissionBaseDeposit = _submissionBaseDeposit;
     }
 
@@ -346,7 +334,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         uint64 _renewalPeriodDuration,
         uint64 _challengePeriodDuration
     ) external onlyGovernor {
-        oldProofOfHumanity.changeDurations(_submissionDuration, _renewalPeriodDuration, _challengePeriodDuration);
+        require(_challengePeriodDuration.addCap64(_renewalPeriodDuration) < _submissionDuration, "Incorrect inputs");
         submissionDuration = _submissionDuration;
         renewalPeriodDuration = _renewalPeriodDuration;
         challengePeriodDuration = _challengePeriodDuration;
@@ -356,7 +344,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _requiredNumberOfVouches The new required number of vouches.
      */
     function changeRequiredNumberOfVouches(uint64 _requiredNumberOfVouches) external onlyGovernor {
-        oldProofOfHumanity.changeRequiredNumberOfVouches(_requiredNumberOfVouches);
         requiredNumberOfVouches = _requiredNumberOfVouches;
     }
 
@@ -364,7 +351,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _sharedStakeMultiplier Multiplier of arbitration fees that must be paid as fee stake. In basis points.
      */
     function changeSharedStakeMultiplier(uint256 _sharedStakeMultiplier) external onlyGovernor {
-        oldProofOfHumanity.changeSharedStakeMultiplier(_sharedStakeMultiplier);
         sharedStakeMultiplier = _sharedStakeMultiplier;
     }
 
@@ -372,7 +358,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _winnerStakeMultiplier Multiplier of arbitration fees that must be paid as fee stake. In basis points.
      */
     function changeWinnerStakeMultiplier(uint256 _winnerStakeMultiplier) external onlyGovernor {
-        oldProofOfHumanity.changeWinnerStakeMultiplier(_winnerStakeMultiplier);
         winnerStakeMultiplier = _winnerStakeMultiplier;
     }
 
@@ -380,7 +365,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _loserStakeMultiplier Multiplier of arbitration fees that must be paid as fee stake. In basis points.
      */
     function changeLoserStakeMultiplier(uint256 _loserStakeMultiplier) external onlyGovernor {
-        oldProofOfHumanity.changeLoserStakeMultiplier(_loserStakeMultiplier);
         loserStakeMultiplier = _loserStakeMultiplier;
     }
 
@@ -392,7 +376,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         external
         onlyGovernor
     {
-        oldProofOfHumanity.changeMetaEvidence(_registrationMetaEvidence, _clearingMetaEvidence);
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
         uint96 newMetaEvidenceUpdates = arbitratorData.metaEvidenceUpdates + 1;
         arbitratorDataList.push(
@@ -402,6 +385,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
                 arbitratorExtraData: arbitratorData.arbitratorExtraData
             })
         );
+        emit MetaEvidence(2 * newMetaEvidenceUpdates, _registrationMetaEvidence);
+        emit MetaEvidence(2 * newMetaEvidenceUpdates + 1, _clearingMetaEvidence);
     }
 
     /** @dev Change the arbitrator to be used for disputes that may be raised in the next requests. The arbitrator is trusted to support appeal period and not reenter.
@@ -409,7 +394,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _arbitratorExtraData The extra data used by the new arbitrator.
      */
     function changeArbitrator(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) external onlyGovernor {
-        oldProofOfHumanity.changeArbitrator(_arbitrator, _arbitratorExtraData);
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
         arbitratorDataList.push(
             ArbitratorData({
@@ -418,6 +402,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
                 arbitratorExtraData: _arbitratorExtraData
             })
         );
+    }
+
+    function executeGovernorProposalForOld(bytes calldata _data) external onlyGovernor {
+        (bool success, ) = address(oldProofOfHumanity).call(_data);
+        require(success);
     }
 
     // ************************ //
@@ -430,13 +419,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      */
     function addSubmission(string calldata _evidence, string calldata _name) external payable {
         Submission storage submission = submissions[msg.sender];
-        SubmissionOnOld memory submissionOnOld = getSubmissionInfoOnOld(msg.sender);
         // Checking on both contracts
         require(
-            !submission.registered &&
-                submission.status == Status.None &&
-                !submissionOnOld.registered &&
-                submissionOnOld.status == Status.None,
+            !submission.registered && submission.status == Status.None && !oldProofOfHumanity.isRegistered(msg.sender),
             "Wrong status"
         );
         if (submission.requests.length == 0) submissionCounter++;
@@ -453,23 +438,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      */
     function reapplySubmission(string calldata _evidence, string calldata _name) external payable {
         Submission storage submission = submissions[msg.sender];
-        SubmissionOnOld memory submissionOnOld = getSubmissionInfoOnOld(msg.sender);
-
-        // Checking on both contracts
-        if (submissionOnOld.registered && submissionOnOld.status == Status.None) {
-            require(submission.status == Status.None, "Wrong status");
-            uint256 renewalAvailableAt = submissionOnOld.submissionTime.addCap64(
-                submissionDuration.subCap64(renewalPeriodDuration)
-            );
-            require(block.timestamp >= renewalAvailableAt, "Can't reapply yet");
-        } else {
-            require((submission.registered && submission.status == Status.None), "Wrong status");
-            uint256 renewalAvailableAt = submission.submissionTime.addCap64(
-                submissionDuration.subCap64(renewalPeriodDuration)
-            );
-            require(block.timestamp >= renewalAvailableAt, "Can't reapply yet");
-        }
-
+        require(submission.registered && submission.status == Status.None, "Wrong status");
+        uint256 renewalAvailableAt = submission.submissionTime.addCap64(
+            submissionDuration.subCap64(renewalPeriodDuration)
+        );
+        require(block.timestamp >= renewalAvailableAt, "Can't reapply yet");
         submission.status = Status.Vouching;
         emit ReapplySubmission(msg.sender, submission.requests.length);
         requestRegistration(msg.sender, _evidence);
@@ -627,7 +600,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
 
         for (uint256 i = 0; i < _vouches.length && request.vouches.length < requiredNumberOfVouches; i++) {
             // Check that the vouch isn't currently used by another submission and the voucher has a right to vouch.
-            if (vouches[_vouches[i]][_submissionID] && isVouchValid(_vouches[i], _submissionID, timeOffset)) {
+            if (
+                (vouches[_vouches[i]][_submissionID] || oldProofOfHumanity.vouches(_vouches[i], _submissionID)) &&
+                isVouchValid(_vouches[i], _submissionID, timeOffset)
+            ) {
                 request.vouches.push(_vouches[i]);
                 submissions[_vouches[i]].hasVouched = true;
             }
@@ -641,6 +617,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _submissionID The address of the submission which request to challenge.
      *  @param _reason The reason to challenge the request. Left empty for removal requests.
      *  @param _duplicateID The address of a supposed duplicate submission. Ignored if the reason is not Duplicate.
+     *  @param _duplicateChainID The chainID of the supposed duplicate submission. Ignored if the reason is not Duplicate.
      *  @param _evidence A link to evidence using its URI. Ignored if not provided.
      */
     function challengeRequest(
@@ -668,10 +645,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
             Reason currentReason = request.currentReason;
             if (_reason == Reason.Duplicate) {
                 if (_duplicateChainID == block.chainid) {
-                    SubmissionOnOld memory submissionOnOld = getSubmissionInfoOnOld(_duplicateID);
+                    (Status statusOnOld, , , bool registeredOnOld, , ) = oldProofOfHumanity.getSubmissionInfo(
+                        _submissionID
+                    );
                     require(
                         (submissions[_duplicateID].status > Status.None || submissions[_duplicateID].registered) ||
-                            (submissionOnOld.status > Status.None || submissionOnOld.registered),
+                            (statusOnOld > Status.None || registeredOnOld),
                         "Wrong duplicate status"
                     );
                     require(_submissionID != _duplicateID, "Can't be a duplicate of itself");
@@ -874,7 +853,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
 
                     voucher.registered = false;
                 } else {
-                    oldProofOfHumanity.removeSubmissionManually(request.vouches[i]);
+                    (Status statusOnOld, , , bool registeredOnOld, , ) = oldProofOfHumanity.getSubmissionInfo(
+                        _submissionID
+                    );
+                    if (registeredOnOld && statusOnOld == Status.None)
+                        oldProofOfHumanity.removeSubmissionManually(request.vouches[i]);
                 }
             }
         }
@@ -931,8 +914,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         }
         round.contributions[_beneficiary][uint256(Party.Requester)] = 0;
         round.contributions[_beneficiary][uint256(Party.Challenger)] = 0;
-        (bool sent, ) = _beneficiary.call{value: reward}("");
-        require(sent, "Failed to send Ether");
+        _beneficiary.send(reward);
     }
 
     /** @dev Give a ruling for a dispute. Can only be called by the arbitrator. TRUSTED.
@@ -1058,10 +1040,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         _round.paidFees[uint256(_side)] += contribution;
         _round.feeRewards += contribution;
 
-        if (remainingETH != 0) {
-            (bool sent, ) = _contributor.call{value: remainingETH}("");
-            require(sent, "Failed to send Ether");
-        }
+        if (remainingETH != 0) _contributor.send(remainingETH);
 
         return contribution;
     }
@@ -1121,7 +1100,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
                     submission.status = Status.None;
                     request.resolved = true;
                 }
-                // Store the challenger that made the requester lose. Update the challenger if there is a duplicate with lower submission time, which is indicated by submission's index.
+                // Store the challenger that made the requester lose. Update the challenger if there is a duplicate on mainnet.
+                // This is done in order to incentivize challengers to search for duplicates among older submissions.
                 if (
                     _winner == Party.Challenger &&
                     (request.ultimateChallenger == address(0x0) ||
@@ -1138,10 +1118,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         emit ChallengeResolved(_submissionID, requestID, _challengeID);
     }
 
-    /** @dev Return true if the vouch is vouch is valid.
+    /** @dev Return true if the vouch is valid.
      *  @param _voucherAddress The address of the voucher.
      *  @param _vouchedSubmissionID The address of the vouched submission.
-     *  @param _timeOffset Precalculated offset between times.
+     *  @param _timeOffset Precalculated offset for submission timeout.
      */
     function isVouchValid(
         address _voucherAddress,
@@ -1151,30 +1131,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         if (_vouchedSubmissionID == _voucherAddress) return false;
 
         Submission storage voucher = submissions[_voucherAddress];
-        SubmissionOnOld memory voucherOnOld = getSubmissionInfoOnOld(_voucherAddress);
+        (, uint256 submissionTimeOnOld, , bool registeredOnOld, bool hasVouchedOnOld, ) = oldProofOfHumanity
+            .getSubmissionInfo(_voucherAddress);
         // Voucher must fit the conditions on one of the contracts
         return
             !voucher.hasVouched &&
             ((voucher.registered && _timeOffset <= voucher.submissionTime) ||
-                (voucherOnOld.registered && _timeOffset <= voucherOnOld.submissionTime && !voucherOnOld.hasVouched));
-    }
-
-    /** @dev Return the information of a submission in the old contract. Requests array will be empty.
-     *  @param _submissionID The address of the queried submission.
-     */
-    function getSubmissionInfoOnOld(address _submissionID)
-        internal
-        view
-        returns (SubmissionOnOld memory submissionOnOld)
-    {
-        (
-            submissionOnOld.status,
-            submissionOnOld.submissionTime,
-            ,
-            submissionOnOld.registered,
-            submissionOnOld.hasVouched,
-
-        ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
+                (registeredOnOld && _timeOffset <= submissionTimeOnOld && !hasVouchedOnOld));
     }
 
     // ************************ //

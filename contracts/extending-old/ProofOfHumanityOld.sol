@@ -145,7 +145,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
 
     ArbitratorData[] public arbitratorDataList; // Stores the arbitrator data of the contract. Updated each time the data is changed.
 
-    mapping(address => Submission) public submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
+    mapping(address => Submission) private submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
     mapping(address => mapping(address => bool)) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID].
     mapping(address => mapping(uint256 => DisputeData)) public arbitratorDisputeIDToDisputeData; // Maps a dispute ID with its data. arbitratorDisputeIDToDisputeData[arbitrator][disputeID].
 
@@ -1197,7 +1197,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _requestID The request to query.
      *  @param _challengeID the challenge to query.
      *  @param _round The round to query.
-     *  @param _contributor The
+     *  @param _contributor The address of the contributor.
      */
     function getContributions(
         address _submissionID,
