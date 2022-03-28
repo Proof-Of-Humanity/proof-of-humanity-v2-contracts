@@ -302,7 +302,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      */
     function addSubmissionManually(address _submissionID, uint64 _submissionTime) external override onlyGovernor {
         Submission storage submission = submissions[_submissionID];
-        require(submission.registered && submission.status == Status.None, "Wrong status");
+        require(submission.status == Status.None, "Wrong status");
         if (submission.submissionTime == 0) submissionCounter++;
         submission.registered = true;
         submission.submissionTime = _submissionTime;
