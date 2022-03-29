@@ -6,9 +6,11 @@ interface IProofOfHumanityBridgeProxy {
 
     event SubmissionUpdated(address _human, bool _isRegistered);
 
-    function receiveSubmissionTransfer(address _submissionID, uint64 _submissionTime) external;
+    function receiveSubmissionTransfer(
+        address _submissionID,
+        uint64 _submissionTime,
+        bytes32 _transferHash
+    ) external;
 
     event SubmissionTransfered(address _human);
-
-    // function requestSubmissionUpdate(address _submissionID) external;
 }

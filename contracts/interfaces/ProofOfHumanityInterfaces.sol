@@ -12,8 +12,6 @@ interface IProofOfHumanityBase {
     }
 
     function isRegistered(address _submissionID) external view returns (bool);
-
-    function submissionCounter() external view returns (uint256);
 }
 
 interface IProofOfHumanityOld is IProofOfHumanityBase {

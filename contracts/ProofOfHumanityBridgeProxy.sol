@@ -7,6 +7,15 @@ import {IProofOfHumanityBridgeProxy} from "./interfaces/IProofOfHumanityBridgePr
 import {IProofOfHumanity, IProofOfHumanityBase} from "./interfaces/ProofOfHumanityInterfaces.sol";
 
 contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBridgeProxy, Governable {
+    // ========== STRUCTS ==========
+
+    struct TransferMessage {
+        uint64 submissionTime;
+        bytes32 transferHash;
+        // bytes32 chainID;
+        // address foreignProxy;
+    }
+
     // ========== STORAGE ==========
 
     /// @dev ArbitraryMessageBridge contract address
@@ -22,13 +31,19 @@ contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBri
     address public foreignProxy;
 
     /// @dev Mapping of the registered submissions
-    mapping(address => bool) private submissions;
+    mapping(address => bool) public submissions;
 
     /// @dev Mapping of whether the current chain is the primary chain on a submission
     mapping(address => bool) public isPrimaryChain;
 
-    /// @dev Counter of submission bridged to current chain
-    uint256 public bridgedCounter;
+    /// @dev nonce to be used as transfer hash
+    bytes32 public nonce;
+
+    /// @dev Mapping of the outgoing transfer messages
+    mapping(address => TransferMessage) public outgoingTransfers;
+
+    /// @dev Mapping of the received transfer hashes
+    mapping(bytes32 => bool) public transferHashes;
 
     // ========== MODIFIERS ==========
 
@@ -41,9 +56,9 @@ contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBri
 
     // ========== CONSTRUCTOR ==========
 
-    /**@notice Creates an arbitration proxy on the foreign chain
-     * @param _amb Contract address of the ArbitraryMessageBridge
-     * @param _proofOfHumanity ProofOfHumanity contract address
+    /** @notice Creates an arbitration proxy on the foreign chain
+     *  @param _amb Contract address of the ArbitraryMessageBridge
+     *  @param _proofOfHumanity ProofOfHumanity contract address
      */
     constructor(IAMB _amb, IProofOfHumanity _proofOfHumanity) {
         amb = _amb;
@@ -52,16 +67,16 @@ contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBri
 
     // ========== GOVERNANCE ==========
 
-    /**@notice Sets a new ArbitraryMessageBridge
-     * @param _amb The address of the new ArbitraryMessageBridge
+    /** @notice Sets a new ArbitraryMessageBridge
+     *  @param _amb The address of the new ArbitraryMessageBridge
      */
     function changeAmb(IAMB _amb) external onlyGovernor {
         amb = _amb;
     }
 
-    /**@notice Sets the address of the arbitration proxy on the Mainnet
-     * @param _foreignProxy Address of the proxy
-     * @param _foreignChainID ID of the foreign chain
+    /** @notice Sets the address of the arbitration proxy on the Mainnet
+     *  @param _foreignProxy Address of the proxy
+     *  @param _foreignChainID ID of the foreign chain
      */
     function setForeignProxy(address _foreignProxy, uint256 _foreignChainID) external onlyGovernor {
         require(foreignProxy == address(0), "Foreign proxy already set");
@@ -71,53 +86,75 @@ contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBri
 
     // ========== REQUESTS ==========
 
-    /**@notice Sends an update of the submission registration status to the foreign chain
-     * @param _submissionID ID of the submission to update
+    /** @notice Sends an update of the submission registration status to the foreign chain
+     *  @param _submissionID ID of the submission to update
      */
     function updateSubmission(address _submissionID) external {
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         if (!isPrimaryChain[_submissionID] && _isRegistered) isPrimaryChain[_submissionID] = true;
         require(isPrimaryChain[_submissionID], "Must update from primary chain");
 
-        bytes4 functionSelector = IProofOfHumanityBridgeProxy(payable(0)).receiveSubmissionUpdate.selector;
+        bytes4 functionSelector = this.receiveSubmissionUpdate.selector;
         bytes memory data = abi.encodeWithSelector(functionSelector, _submissionID, _isRegistered);
         amb.requireToPassMessage(foreignProxy, data, amb.maxGasPerTx());
     }
 
-    /**@notice Transfers the submission to the foreign chain
+    /** @notice Transfers the submission to the foreign chain
      */
     function transferSubmission() external {
-        (, uint64 _submissionTime, , bool _hasVouched, ) = proofOfHumanity.getSubmissionInfo(msg.sender);
-        require(!_hasVouched, "Must not vouch at the moment");
+        (Status status, uint64 submissionTime, bool registered, bool hasVouched, ) = proofOfHumanity.getSubmissionInfo(
+            msg.sender
+        );
 
-        submissions[msg.sender] = proofOfHumanity.isRegistered(msg.sender);
-        isPrimaryChain[msg.sender] = false;
-        proofOfHumanity.removeSubmissionManually(msg.sender);
+        TransferMessage memory outgoingTransfer = outgoingTransfers[msg.sender];
+        bytes32 transferHash = outgoingTransfer.transferHash;
 
-        bytes4 functionSelector = IProofOfHumanityBridgeProxy(payable(0)).receiveSubmissionTransfer.selector;
-        bytes memory data = abi.encodeWithSelector(functionSelector, msg.sender, _submissionTime);
+        if (submissionTime == outgoingTransfer.submissionTime) {
+            // Retry failed transfer
+            require(!registered && status == Status.None, "Wrong status");
+            submissionTime = outgoingTransfer.submissionTime;
+        } else {
+            // Normal transfer
+            require(!hasVouched, "Must not vouch at the moment");
+
+            submissions[msg.sender] = proofOfHumanity.isRegistered(msg.sender);
+            isPrimaryChain[msg.sender] = false;
+            proofOfHumanity.removeSubmissionManually(msg.sender);
+
+            transferHash = keccak256(abi.encodePacked(msg.sender, block.chainid, nonce));
+            outgoingTransfers[msg.sender] = TransferMessage(submissionTime, transferHash);
+            nonce = transferHash;
+        }
+
+        bytes4 selector = this.receiveSubmissionTransfer.selector;
+        bytes memory data = abi.encodeWithSelector(selector, msg.sender, submissionTime, transferHash);
         amb.requireToPassMessage(foreignProxy, data, amb.maxGasPerTx());
     }
 
     // ========== RECEIVES ==========
 
-    /**@notice Receives the submission from the foreign proxy
-     * @param _submissionID ID of the submission to update
-     * @param _isRegistered registration status of the submission
+    /** @notice Receives the submission from the foreign proxy
+     *  @param _submissionID ID of the submission to update
+     *  @param _isRegistered registration status of the submission
      */
     function receiveSubmissionUpdate(address _submissionID, bool _isRegistered) external override onlyForeignProxy {
         submissions[_submissionID] = _isRegistered;
     }
 
-    /**@notice Receives the transfered submission from the foreign proxy
-     * @param _submissionID ID of the transfered submission
-     * @param _submissionTime time when the submission was accepted to the list.
+    /** @notice Receives the transfered submission from the foreign proxy
+     *  @param _submissionID ID of the transfered submission
+     *  @param _submissionTime time when the submission was accepted to the list.
+     *  @param _transferHash hash of the transfer.
      */
-    function receiveSubmissionTransfer(address _submissionID, uint64 _submissionTime)
-        external
-        override
-        onlyForeignProxy
-    {
+    function receiveSubmissionTransfer(
+        address _submissionID,
+        uint64 _submissionTime,
+        bytes32 _transferHash
+    ) external override onlyForeignProxy {
+        require(!transferHashes[_transferHash], "Submission already transfered");
+        transferHashes[_transferHash] = true;
+        delete outgoingTransfers[msg.sender];
+
         proofOfHumanity.addSubmissionManually(_submissionID, _submissionTime);
         isPrimaryChain[msg.sender] = true;
     }
@@ -128,10 +165,5 @@ contract ProofOfHumanityBridgeProxy is IProofOfHumanityBase, IProofOfHumanityBri
         return
             proofOfHumanity.isRegistered(_submissionID) ||
             (!isPrimaryChain[_submissionID] && submissions[_submissionID]);
-        // return submissions[_submissionID] || proofOfHumanity.isRegistered(_submissionID);
-    }
-
-    function submissionCounter() external view override returns (uint256) {
-        return bridgedCounter + proofOfHumanity.submissionCounter();
     }
 }
