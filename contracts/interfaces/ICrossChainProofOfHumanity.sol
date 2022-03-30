@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-interface IProofOfHumanityBridgeProxy {
+import {IProofOfHumanityBase} from "./ProofOfHumanityInterfaces.sol";
+
+interface ICrossChainProofOfHumanity is IProofOfHumanityBase {
     function receiveSubmissionUpdate(address _submissionID, bool _isRegistered) external;
 
-    event SubmissionUpdated(address _human, bool _isRegistered);
+    event SubmissionUpdated(address _submissionID, bool _isRegistered);
 
     function receiveSubmissionTransfer(
         address _submissionID,
@@ -12,5 +14,5 @@ interface IProofOfHumanityBridgeProxy {
         bytes32 _transferHash
     ) external;
 
-    event SubmissionTransfered(address _human);
+    event SubmissionTransfered(address _submissionID);
 }

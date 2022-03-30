@@ -9,12 +9,13 @@
 
 pragma solidity ^0.8;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
-import {CappedMath} from "./utils/libraries/CappedMath.sol";
 import {Governable} from "./utils/Governable.sol";
+import {CappedMath} from "./utils/libraries/CappedMath.sol";
 
 /** @title ProofOfHumanity
  *  This contract is a curated registry for people. The users are identified by their address and can be added or removed through the request-challenge protocol.
@@ -24,7 +25,7 @@ import {Governable} from "./utils/Governable.sol";
  *  NOTE: This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
-contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
+contract ProofOfHumanity is IArbitrable, IEvidence, Governable, UUPSUpgradeable {
     using CappedMath for uint256;
     using CappedMath for uint64;
 
@@ -244,7 +245,7 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
      *  @param _multipliers The array that contains fee stake multipliers to avoid 'stack too deep' error.
      *  @param _requiredNumberOfVouches The number of vouches the submission has to have to pass from Vouching to PendingRegistration state.
      */
-    constructor(
+    function initialize(
         IArbitrator _arbitrator,
         bytes memory _arbitratorExtraData,
         string memory _registrationMetaEvidence,
@@ -255,10 +256,11 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
         uint64 _challengePeriodDuration,
         uint256[3] memory _multipliers,
         uint64 _requiredNumberOfVouches
-    ) {
+    ) public initializer {
         emit MetaEvidence(0, _registrationMetaEvidence);
         emit MetaEvidence(1, _clearingMetaEvidence);
 
+        governor = msg.sender;
         submissionBaseDeposit = _submissionBaseDeposit;
         submissionDuration = _submissionDuration;
         renewalPeriodDuration = _renewalPeriodDuration;
@@ -290,6 +292,8 @@ contract ProofOfHumanity is Governable, IArbitrable, IEvidence {
             abi.encode(DOMAIN_TYPEHASH, keccak256("Proof of Humanity"), block.chainid, address(this))
         );
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyGovernor {}
 
     /* External and Public */
 

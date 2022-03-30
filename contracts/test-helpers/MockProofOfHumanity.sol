@@ -10,7 +10,7 @@ contract MockProofOfHumanity is IProofOfHumanity {
     }
 
     mapping(address => Submission) public submissions;
-    uint256 public override submissionCounter;
+    uint256 public submissionCounter;
 
     function addSubmissionManually(address _submissionID, uint64 _submissionTime) external override {
         Submission storage submission = submissions[_submissionID];

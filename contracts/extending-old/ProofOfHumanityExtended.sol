@@ -9,13 +9,14 @@
 
 pragma solidity ^0.8;
 
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
-import {CappedMath} from "../utils/libraries/CappedMath.sol";
 import {Governable} from "../utils/Governable.sol";
 import {IProofOfHumanity, IProofOfHumanityOld} from "../interfaces/ProofOfHumanityInterfaces.sol";
+import {CappedMath} from "../utils/libraries/CappedMath.sol";
 
 /**
  *  @title ProofOfHumanity
@@ -26,7 +27,7 @@ import {IProofOfHumanity, IProofOfHumanityOld} from "../interfaces/ProofOfHumani
  *  NOTE: This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
-contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, IEvidence {
+contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Governable, UUPSUpgradeable {
     using CappedMath for uint256;
     using CappedMath for uint64;
 
@@ -135,7 +136,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
     uint256 public winnerStakeMultiplier; // Multiplier for calculating the fee stake paid by the party that won the previous round.
     uint256 public loserStakeMultiplier; // Multiplier for calculating the fee stake paid by the party that lost the previous round.
 
-    uint256 public override submissionCounter; // The total count of all submissions that made a registration request at some point. Includes manually added submissions as well.
+    uint256 public submissionCounter; // The total count of all submissions that made a registration request at some point. Includes manually added submissions as well.
 
     ArbitratorData[] public arbitratorDataList; // Stores the arbitrator data of the contract. Updated each time the data is changed.
 
@@ -242,7 +243,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
      *  @param _multipliers The array that contains fee stake multipliers to avoid 'stack too deep' error.
      *  @param _requiredNumberOfVouches The number of vouches the submission has to have to pass from Vouching to PendingRegistration state.
      */
-    constructor(
+    function initialize(
         IProofOfHumanityOld _oldProofOfHumanity,
         IArbitrator _arbitrator,
         bytes memory _arbitratorExtraData,
@@ -254,10 +255,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
         uint64 _challengePeriodDuration,
         uint256[3] memory _multipliers,
         uint64 _requiredNumberOfVouches
-    ) {
+    ) public initializer {
         emit MetaEvidence(0, _registrationMetaEvidence);
         emit MetaEvidence(1, _clearingMetaEvidence);
 
+        governor = msg.sender;
         oldProofOfHumanity = _oldProofOfHumanity;
         submissionBaseDeposit = _submissionBaseDeposit;
         submissionDuration = _submissionDuration;
@@ -290,6 +292,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, Governable, IArbitrable, I
             abi.encode(DOMAIN_TYPEHASH, keccak256("Proof of Humanity"), block.chainid, address(this))
         );
     }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyGovernor {}
 
     /* External and Public */
 

@@ -3,11 +3,12 @@ import { HardhatUserConfig } from "hardhat/config";
 import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "solidity-coverage";
+import "@openzeppelin/hardhat-upgrades";
 
 dotenv.config();
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.0",
+  solidity: "0.8.3",
   networks: {
     hardhat: {
       allowUnlimitedContractSize: true,

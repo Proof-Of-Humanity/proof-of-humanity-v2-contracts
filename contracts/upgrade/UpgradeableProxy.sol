@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8;
 
-// solhint-disable no-inline-assembly
-// solhint-disable avoid-low-level-calls
-
 contract UpgradeableProxy {
     //keccak256("proof-of-humanity.proxiable")
-    bytes32 private constant _IMPLEMENTATION_SLOT =
-        0x26974a05cdcf64ad7ce50c30741f81d31ef71478fe0381e3c11c9efc2e25c538;
+    bytes32 private constant _IMPLEMENTATION_SLOT = 0x26974a05cdcf64ad7ce50c30741f81d31ef71478fe0381e3c11c9efc2e25c538;
 
     constructor(bytes memory _constructData, address _implementation) {
         assembly {
@@ -25,17 +21,16 @@ contract UpgradeableProxy {
 
     function _delegate(address _implementation) internal {
         assembly {
+            // copy incoming call data
             calldatacopy(0, 0, calldatasize())
-            let result := delegatecall(
-                gas(),
-                _implementation,
-                0,
-                calldatasize(),
-                0,
-                0
-            )
+
+            // forward call to logic contract
+            let result := delegatecall(gas(), _implementation, 0, calldatasize(), 0, 0)
+
+            // retrieve return data
             returndatacopy(0, 0, returndatasize())
 
+            // forward return data back to caller
             switch result
             case 0 {
                 revert(0, returndatasize())
@@ -54,11 +49,7 @@ contract UpgradeableProxy {
         _delegate(_getImplementation());
     }
 
-    function _getImplementation()
-        internal
-        view
-        returns (address implementation)
-    {
+    function _getImplementation() internal view returns (address implementation) {
         assembly {
             implementation := sload(_IMPLEMENTATION_SLOT)
         }
