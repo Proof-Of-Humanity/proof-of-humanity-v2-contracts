@@ -126,6 +126,8 @@ contract ProofOfHumanity is IArbitrable, IEvidence, Governable, UUPSUpgradeable 
 
     /* Storage */
 
+    address public crossChainProofOfHumanity;
+
     uint256 public submissionBaseDeposit; // The base deposit to make a new request for a submission.
 
     // Note that to ensure correct contract behaviour the sum of challengePeriodDuration and renewalPeriodDuration should be less than submissionDuration.
@@ -146,6 +148,16 @@ contract ProofOfHumanity is IArbitrable, IEvidence, Governable, UUPSUpgradeable 
     mapping(address => Submission) private submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
     mapping(address => mapping(address => bool)) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID].
     mapping(address => mapping(uint256 => DisputeData)) public arbitratorDisputeIDToDisputeData; // Maps a dispute ID with its data. arbitratorDisputeIDToDisputeData[arbitrator][disputeID].
+
+    /* Modifiers */
+
+    modifier onlyBridgeOrGovernor() {
+        require(
+            msg.sender == governor || msg.sender == crossChainProofOfHumanity,
+            "The caller must be the cross-chain instance or the governor"
+        );
+        _;
+    }
 
     /* Events */
 
@@ -305,7 +317,7 @@ contract ProofOfHumanity is IArbitrable, IEvidence, Governable, UUPSUpgradeable 
      *  @param _submissionID The addresses of newly added submission.
      *  @param _submissionTime The submission time of the newly added submission.
      */
-    function addSubmissionManually(address _submissionID, uint64 _submissionTime) external onlyGovernor {
+    function addSubmissionManually(address _submissionID, uint64 _submissionTime) external onlyBridgeOrGovernor {
         Submission storage submission = submissions[_submissionID];
         require(submission.status == Status.None, "Wrong status");
         if (submission.submissionTime == 0) submissionCounter++;
@@ -316,7 +328,7 @@ contract ProofOfHumanity is IArbitrable, IEvidence, Governable, UUPSUpgradeable 
     /** @dev Allow the governor to directly remove a registered entry from the list as a part of the seeding event.
      *  @param _submissionID The address of a submission to remove.
      */
-    function removeSubmissionManually(address _submissionID) external onlyGovernor {
+    function removeSubmissionManually(address _submissionID) external onlyBridgeOrGovernor {
         Submission storage submission = submissions[_submissionID];
         require(submission.registered && submission.status == Status.None, "Wrong status");
         submission.registered = false;

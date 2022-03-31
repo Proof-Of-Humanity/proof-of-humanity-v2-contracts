@@ -122,6 +122,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     /* Storage */
 
     IProofOfHumanityOld public oldProofOfHumanity;
+    address public crossChainProofOfHumanity;
 
     uint256 public submissionBaseDeposit; // The base deposit to make a new request for a submission.
 
@@ -143,6 +144,16 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     mapping(address => Submission) private submissions; // Maps the submission ID to its data. submissions[submissionID]. It is private because of getSubmissionInfo().
     mapping(address => mapping(address => bool)) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID].
     mapping(address => mapping(uint256 => DisputeData)) public arbitratorDisputeIDToDisputeData; // Maps a dispute ID with its data. arbitratorDisputeIDToDisputeData[arbitrator][disputeID].
+
+    /* Modifiers */
+
+    modifier onlyBridgeOrGovernor() {
+        require(
+            msg.sender == governor || msg.sender == crossChainProofOfHumanity,
+            "The caller must be the cross-chain instance or the governor"
+        );
+        _;
+    }
 
     /* Events */
 
@@ -304,7 +315,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     /** @dev Allow the governor to directly add a new submission to the list.
      *  @param _submissionID The addresses of newly added submission.
      */
-    function addSubmissionManually(address _submissionID, uint64 _submissionTime) external override onlyGovernor {
+    function addSubmissionManually(address _submissionID, uint64 _submissionTime)
+        external
+        override
+        onlyBridgeOrGovernor
+    {
         Submission storage submission = submissions[_submissionID];
         require(submission.status == Status.None, "Wrong status");
         if (submission.submissionTime == 0) submissionCounter++;
@@ -315,7 +330,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     /** @dev Allow the governor to directly remove a registered entry from the list as a part of the seeding event.
      *  @param _submissionID The address of a submission to remove.
      */
-    function removeSubmissionManually(address _submissionID) external override onlyGovernor {
+    function removeSubmissionManually(address _submissionID) external override onlyBridgeOrGovernor {
         Submission storage submission = submissions[_submissionID];
         if (submission.registered && submission.status == Status.None) submission.registered = false;
         else oldProofOfHumanity.removeSubmissionManually(_submissionID);
@@ -406,6 +421,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
                 arbitratorExtraData: _arbitratorExtraData
             })
         );
+    }
+
+    /** @dev Change the cross-chain instance
+     *  @param _crossChainProofOfHumanity The new cross-chain instance to be used
+     */
+    function changeCrossChainProofOfHumanity(address _crossChainProofOfHumanity) external onlyGovernor {
+        crossChainProofOfHumanity = _crossChainProofOfHumanity;
     }
 
     function executeGovernorProposalForOld(bytes calldata _data) external onlyGovernor {
