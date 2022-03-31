@@ -70,19 +70,15 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     event GatewaysUpdated(address indexed _bridgeGateway, bool _active);
 
     /** @notice Adds bridge gateway contract address to whitelist
-     *  @param _bridgeGateway the address of the bridge gateway contract
+     *  @param _bridgeGateway the address of the new bridge gateway contract
+     *  @param _remove whether to add/remove the gateway
      */
-    function addBridgeGateway(address _bridgeGateway) external onlyGovernor {
-        require(!bridgeGateways[_bridgeGateway], "Bridge gateway already supported");
-        bridgeGateways[_bridgeGateway] = true;
-        emit GatewaysUpdated(_bridgeGateway, true);
-    }
+    function setBridgeGateway(address _bridgeGateway, bool _remove) external onlyGovernor {
+        if (_remove) require(bridgeGateways[_bridgeGateway], "Bridge gateway already not supported");
+        else require(!bridgeGateways[_bridgeGateway], "Bridge gateway already supported");
 
-    /** @notice Removes bridge gateway contract address from whitelist
-     *  @param _bridgeGateway The address of the bridge gateway contract
-     */
-    function removeBridgeGateway(address _bridgeGateway) external onlyGovernor onlyBridgeGateway(_bridgeGateway) {
-        delete bridgeGateways[_bridgeGateway];
+        bridgeGateways[_bridgeGateway] = !_remove;
+        emit GatewaysUpdated(_bridgeGateway, !_remove);
     }
 
     // ========== REQUESTS ==========
@@ -129,19 +125,20 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     }
 
     /** @notice Retry a failed transfer
+     *  @param _submissionID ID of the submission to retry transfer for
      */
-    function retryFailedTransfer() external {
-        (Status status, uint64 submissionTime, bool registered, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+    function retryFailedTransfer(address _submissionID) external {
+        (Status status, uint64 submissionTime, bool registered, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         require(!registered && status == Status.None, "Wrong status");
 
-        Transfer memory transfer = outgoingTransfers[msg.sender];
+        Transfer memory transfer = outgoingTransfers[_submissionID];
         require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
         require(submissionTime == transfer.submissionTime, "Submission time mismatch");
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 this.receiveSubmissionTransfer.selector,
-                msg.sender,
+                _submissionID,
                 transfer.submissionTime,
                 transfer.transferHash
             )
@@ -160,6 +157,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         onlyBridgeGateway(msg.sender)
     {
         submissions[_submissionID] = _isRegistered;
+        isPrimaryChain[_submissionID] = false;
         emit SubmissionUpdated(_submissionID, _isRegistered);
     }
 
@@ -175,10 +173,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     ) external override onlyBridgeGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash], "Submission already transfered");
         receivedTransferHashes[_transferHash] = true;
-        delete outgoingTransfers[msg.sender];
 
         proofOfHumanity.addSubmissionManually(_submissionID, _submissionTime);
-        isPrimaryChain[msg.sender] = true;
+        isPrimaryChain[_submissionID] = true;
         emit SubmissionTransfered(_submissionID);
     }
 
