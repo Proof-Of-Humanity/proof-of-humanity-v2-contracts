@@ -5,7 +5,8 @@
   "author": "",
   "license": "MIT",
   "scripts": {
-    "test": "mocha test/index.ts"
+    "test": "mocha test/index.ts",
+    "size": "hardhat size-contracts"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
@@ -23,6 +24,7 @@
     "dotenv": "^16.0.0",
     "ethereum-waffle": "^3.4.0",
     "hardhat": "^2.8.4",
+    "hardhat-contract-sizer": "^2.5.1",
     "mocha": "^9.2.0",
     "solidity-coverage": "^0.7.20",
     "ts-node": "^10.5.0",

@@ -4,11 +4,20 @@ import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "solidity-coverage";
 import "@openzeppelin/hardhat-upgrades";
+import "hardhat-contract-sizer";
 
 dotenv.config();
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.3",
+  solidity: {
+    version: "0.8.3",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 10,
+      },
+    },
+  },
   networks: {
     hardhat: {
       allowUnlimitedContractSize: true,
