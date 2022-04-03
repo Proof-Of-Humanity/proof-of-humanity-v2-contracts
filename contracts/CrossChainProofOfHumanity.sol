@@ -12,9 +12,16 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     // ========== STRUCTS ==========
 
     struct Transfer {
-        uint64 submissionTime;
-        address bridgeGateway;
-        bytes32 transferHash;
+        uint64 submissionTime; // submissionTime at the moment of transfer
+        address bridgeGateway; // bridge gateway used for the transfer
+        bytes32 transferHash; // unique hash of the transfer == keccak256(submissionID, chainID, nonce)
+    }
+
+    struct Submission {
+        bool isPrimaryChain; // whether current chain is primary chain of the submission
+        bool registered; // whether submission is marked as registered
+        uint64 submissionTime; // submissionTime at the moment of update
+        Transfer outgoing; // last outgoing transfer to a foreign chain
     }
 
     // ========== STORAGE ==========
@@ -23,16 +30,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     IProofOfHumanity public proofOfHumanity;
 
     /// @dev Mapping of the registered submissions
-    mapping(address => bool) public submissions;
-
-    /// @dev Mapping of whether the current chain is the primary chain on a submission
-    mapping(address => bool) public isPrimaryChain;
+    mapping(address => Submission) public submissions;
 
     /// @dev nonce to be used as transfer hash
     bytes32 public nonce;
-
-    /// @dev Mapping of the outgoing transfer messages
-    mapping(address => Transfer) public outgoingTransfers;
 
     /// @dev Mapping of the received transfer hashes
     mapping(bytes32 => bool) public receivedTransferHashes;
@@ -91,12 +92,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         external
         onlyBridgeGateway(_bridgeGateway)
     {
+        (, uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
-        if (!isPrimaryChain[_submissionID] && _isRegistered) isPrimaryChain[_submissionID] = true;
-        require(isPrimaryChain[_submissionID], "Must update from primary chain");
+        Submission storage submission = submissions[_submissionID];
+        if (!submission.isPrimaryChain && _isRegistered) submission.isPrimaryChain = true;
+        require(submission.isPrimaryChain, "Must update from primary chain");
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(this.receiveSubmissionUpdate.selector, _submissionID, _isRegistered)
+            abi.encodeWithSelector(this.receiveSubmissionUpdate.selector, _submissionID, submissionTime, _isRegistered)
         );
     }
 
@@ -108,12 +111,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         require(!hasVouched, "Must not vouch at the moment");
         require(proofOfHumanity.isRegistered(msg.sender), "Must be registered to transfer");
 
-        submissions[msg.sender] = true;
-        isPrimaryChain[msg.sender] = false;
         proofOfHumanity.removeSubmissionManually(msg.sender);
 
+        Submission storage submission = submissions[msg.sender];
+        _updateSubmission(submission, true, submissionTime, false);
+
         nonce = keccak256(abi.encodePacked(msg.sender, block.chainid, nonce));
-        outgoingTransfers[msg.sender] = Transfer({
+        submission.outgoing = Transfer({
             submissionTime: submissionTime,
             bridgeGateway: _bridgeGateway,
             transferHash: nonce
@@ -131,7 +135,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         (Status status, uint64 submissionTime, bool registered, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         require(!registered && status == Status.None, "Wrong status");
 
-        Transfer memory transfer = outgoingTransfers[_submissionID];
+        Transfer memory transfer = submissions[msg.sender].outgoing;
         require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
         require(submissionTime == transfer.submissionTime, "Submission time mismatch");
 
@@ -149,21 +153,21 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
 
     /** @notice Receives the submission from the foreign proxy
      *  @param _submissionID ID of the submission to update
+     *  @param _submissionTime time when the submission was last accepted to the list.
      *  @param _isRegistered registration status of the submission
      */
-    function receiveSubmissionUpdate(address _submissionID, bool _isRegistered)
-        external
-        override
-        onlyBridgeGateway(msg.sender)
-    {
-        submissions[_submissionID] = _isRegistered;
-        isPrimaryChain[_submissionID] = false;
-        emit SubmissionUpdated(_submissionID, _isRegistered);
+    function receiveSubmissionUpdate(
+        address _submissionID,
+        uint64 _submissionTime,
+        bool _isRegistered
+    ) external override onlyBridgeGateway(msg.sender) {
+        _updateSubmission(submissions[_submissionID], _isRegistered, _submissionTime, false);
+        emit SubmissionUpdated(_submissionID, _submissionTime, _isRegistered);
     }
 
     /** @notice Receives the transfered submission from the foreign proxy
      *  @param _submissionID ID of the transfered submission
-     *  @param _submissionTime time when the submission was accepted to the list.
+     *  @param _submissionTime time when the submission was last accepted to the list.
      *  @param _transferHash hash of the transfer.
      */
     function receiveSubmissionTransfer(
@@ -175,15 +179,37 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         receivedTransferHashes[_transferHash] = true;
 
         proofOfHumanity.addSubmissionManually(_submissionID, _submissionTime);
-        isPrimaryChain[_submissionID] = true;
+        _updateSubmission(submissions[_submissionID], true, _submissionTime, true);
         emit SubmissionTransfered(_submissionID);
+    }
+
+    // ========== INTERNAL ==========
+
+    /** @notice Updates the submission attributes
+     *  @param _submission the submission to update
+     *  @param _isRegistered registration status of the submission
+     *  @param _submissionTime time when the submission was last accepted to the list
+     *  @param _isPrimaryChain whether current chain is primary chain of the submission
+     */
+    function _updateSubmission(
+        Submission storage _submission,
+        bool _isRegistered,
+        uint64 _submissionTime,
+        bool _isPrimaryChain
+    ) internal {
+        _submission.registered = _isRegistered;
+        _submission.submissionTime = _submissionTime;
+        _submission.isPrimaryChain = _isPrimaryChain;
     }
 
     // ========== VIEWS ==========
 
     function isRegistered(address _submissionID) external view override returns (bool) {
+        Submission memory submission = submissions[_submissionID];
         return
             proofOfHumanity.isRegistered(_submissionID) ||
-            (!isPrimaryChain[_submissionID] && submissions[_submissionID]);
+            (!submission.isPrimaryChain &&
+                submission.registered &&
+                (block.timestamp - submission.submissionTime <= proofOfHumanity.submissionDuration()));
     }
 }
