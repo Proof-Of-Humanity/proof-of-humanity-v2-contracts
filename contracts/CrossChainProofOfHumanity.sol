@@ -1,4 +1,10 @@
-// SPDX-License-Identifier: MIT
+/** @authors: [@andreimvp]
+ *  @reviewers: [@unknownunknown1*, @fnanni-0, @hrishibhat]
+ *  @auditors: []
+ *  @bounties: []
+ *  @deployments: []
+ *  SPDX-License-Identifier: MIT
+ */
 pragma solidity ^0.8;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
