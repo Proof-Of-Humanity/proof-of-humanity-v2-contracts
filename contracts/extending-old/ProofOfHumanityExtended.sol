@@ -1,25 +1,25 @@
-/** SPDX-License-Identifier: MIT
- *  @authors: [@unknownunknown1, @nix1g]
+/** @authors: [@unknownunknown1, @nix1g]
  *  @reviewers: [@fnanni-0, @mtsalenc*, @nix1g, @clesaege*, @hbarcelos*, @ferittuncer*, @shalzz, @MerlinEgalite]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
- *  @tools: [MythX*]
+ *  SPDX-License-Identifier: MIT
  */
 
 pragma solidity ^0.8;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
+import {UpgradeableProxiable} from "../upgrade/UpgradeableProxiable.sol";
 import {Governable} from "../utils/Governable.sol";
+import {Initializable} from "../utils/Initializable.sol";
 import {CappedMath} from "../utils/libraries/CappedMath.sol";
 import {IProofOfHumanity, IProofOfHumanityOld} from "../interfaces/ProofOfHumanityInterfaces.sol";
 
-/**
- *  @title ProofOfHumanity
+/** @title ProofOfHumanityExtended
+ *  Extending another ProofOfHumanity contract
  *  This contract is a curated registry for people. The users are identified by their address and can be added or removed through the request-challenge protocol.
  *  In order to challenge a registration request the challenger must provide one of the four reasons.
  *  New registration requests firstly should gain sufficient amount of vouches from other registered users and only after that they can be accepted or challenged.
@@ -27,7 +27,14 @@ import {IProofOfHumanity, IProofOfHumanityOld} from "../interfaces/ProofOfHumani
  *  NOTE: This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
-contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Governable, UUPSUpgradeable {
+contract ProofOfHumanityExtended is
+    IProofOfHumanity,
+    IArbitrable,
+    IEvidence,
+    Governable,
+    Initializable,
+    UpgradeableProxiable
+{
     using CappedMath for uint256;
     using CappedMath for uint64;
 
@@ -75,17 +82,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
         Reason currentReason; // Current reason a registration request was challenged with. Is left empty for removal requests.
         uint8 usedReasons; // Bitmap of the reasons used by challengers of this request.
-        uint16 nbParallelDisputes; // Tracks the number of simultaneously raised disputes. Parallel disputes are only allowed for reason Duplicate.
         uint16 arbitratorDataID; // The index of the relevant arbitratorData struct. All the arbitrator info is stored in a separate struct to reduce gas cost.
         uint16 lastChallengeID; // The ID of the last challenge, which is equal to the total number of challenges for the request.
         uint32 lastProcessedVouch; // Stores the index of the last processed vouch in the array of vouches. It is used for partial processing of the vouches in resolved submissions.
         uint64 challengePeriodStart; // Time when the submission can be challenged.
-        uint256 currentDuplicateChainID; // Stores the chainID of the duplicate submission provided by the challenger who is currently winning.
         address payable requester; // Address that made a request. It is left empty for the registration requests since it matches submissionID in that case.
-        address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged submission must pay the fines to this address.
         address[] vouches; // Stores the addresses of submissions that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeID -> Challenge.
-        mapping(address => mapping(uint256 => bool)) challengeDuplicates; // Indicates whether a certain duplicate address has been used in a challenge or not challengeDuplicates[duplicateID][chainID].
     }
 
     // Some arrays below have 3 elements to map with the Party enums for better readability:
@@ -93,18 +96,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     // - 1: for `Party.Requester`.
     // - 2: for `Party.Challenger`.
     struct Round {
-        uint256[3] paidFees; // Tracks the fees paid by each side in this round.
         Party sideFunded; // Stores the side that successfully paid the appeal fees in the latest round. Note that if both sides have paid a new round is created.
         uint256 feeRewards; // Sum of reimbursable fees and stake rewards available to the parties that made contributions to the side that ultimately wins a dispute.
+        uint256[3] paidFees; // Tracks the fees paid by each side in this round.
         mapping(address => uint256[3]) contributions; // Maps contributors to their contributions for each side.
     }
 
     struct Challenge {
         Party ruling; // Ruling given by the arbitrator of the dispute.
         uint16 lastRoundID; // The ID of the last round.
-        address payable challenger; // Address that challenged the request.
         uint256 disputeID; // The ID of the dispute related to the challenge.
-        uint256 duplicateSubmissionChainID; // ChainID of a submission, which is a supposed duplicate of a challenged submission. It is only used for reason Duplicate.
+        address payable challenger; // Address that challenged the request.
         mapping(uint256 => Round) rounds; // Tracks the info of each funding round of the challenge.
     }
 
@@ -304,7 +306,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         );
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyGovernor {}
+    function _authorizeUpgrade() internal override onlyGovernor {}
 
     /* External and Public */
 
@@ -314,6 +316,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
 
     /** @dev Allow the governor to directly add a new submission to the list.
      *  @param _submissionID The addresses of newly added submission.
+     *  @param _submissionTime The submission time of the newly added submission.
      */
     function addSubmissionManually(address _submissionID, uint64 _submissionTime)
         external
@@ -442,7 +445,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     // *       Requests       * //
     // ************************ //
 
-    /** @dev Make a request to add a new entry to the list. Paying the full deposit right away is not required as it can be crowdfunded later.
+    /** @dev Make a request to add/reapply an entry to the list. Paying the full deposit right away is not required as it can be crowdfunded later.
      *  @param _evidence A link to evidence using its URI.
      *  @param _name The name of the submitter. This parameter is for Subgraph only and it won't be used in this function.
      */
@@ -454,6 +457,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
             emit ReapplySubmission(msg.sender, submission.lastRequestID);
         } else {
             require(!oldProofOfHumanity.isRegistered(msg.sender), "Wrong status");
+            if (submission.lastRequestID == 0) submissionCounter++;
             emit AddSubmission(msg.sender, submission.lastRequestID);
         }
 
@@ -635,15 +639,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
     /** @dev Challenge the submission's request. Accept enough ETH to cover the deposit, reimburse the rest.
      *  @param _submissionID The address of the submission which request to challenge.
      *  @param _reason The reason to challenge the request. Left empty for removal requests.
-     *  @param _duplicateID The address of a supposed duplicate submission. Ignored if the reason is not Duplicate.
-     *  @param _duplicateChainID The chainID of the supposed duplicate submission. Ignored if the reason is not Duplicate.
      *  @param _evidence A link to evidence using its URI. Ignored if not provided.
      */
     function challengeRequest(
         address _submissionID,
         Reason _reason,
-        address _duplicateID,
-        uint256 _duplicateChainID,
         string calldata _evidence
     ) external payable {
         Submission storage submission = submissions[_submissionID];
@@ -654,49 +654,23 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         else revert("Wrong status");
 
         Request storage request = submission.requests[submission.lastRequestID];
-        require(
-            block.timestamp - request.challengePeriodStart <= challengePeriodDuration,
-            "Time to challenge has passed"
-        );
+        require(!request.disputed, "The request is disputed");
+        require(_isChallengePeriod(request), "Time to challenge has passed");
 
-        Challenge storage challenge = request.challenges[request.lastChallengeID];
-        {
-            Reason currentReason = request.currentReason;
-            if (_reason == Reason.Duplicate) {
-                if (_duplicateChainID == block.chainid) {
-                    (Status statusOnOld, , , bool registeredOnOld, , ) = oldProofOfHumanity.getSubmissionInfo(
-                        _submissionID
-                    );
-                    require(
-                        (submissions[_duplicateID].status > Status.None || submissions[_duplicateID].registered) ||
-                            (statusOnOld > Status.None || registeredOnOld),
-                        "Wrong duplicate status"
-                    );
-                    require(_submissionID != _duplicateID, "Can't be a duplicate of itself");
-                }
-                require(currentReason == Reason.Duplicate || currentReason == Reason.None, "Another reason is active");
-                require(
-                    !request.challengeDuplicates[_duplicateID][_duplicateChainID],
-                    "Duplicate address already used"
-                );
-                request.challengeDuplicates[_duplicateID][_duplicateChainID] = true;
-                challenge.duplicateSubmissionChainID = _duplicateChainID;
-            } else require(!request.disputed, "The request is disputed");
-
-            if (currentReason != _reason) {
-                uint8 reasonBit = uint8(1 << (uint256(_reason) - 1)); // Get the bit that corresponds with reason's index.
-                require((reasonBit & ~request.usedReasons) == reasonBit, "The reason has already been used");
-                request.usedReasons ^= reasonBit; // Mark the bit corresponding with reason's index as 'true', to indicate that the reason was used.
-                request.currentReason = _reason;
-            }
+        if (request.currentReason != _reason) {
+            uint8 reasonBit = uint8(1 << (uint256(_reason) - 1)); // Get the bit that corresponds with reason's index.
+            require((reasonBit & ~request.usedReasons) == reasonBit, "The reason has already been used");
+            request.usedReasons ^= reasonBit; // Mark the bit corresponding with reason's index as 'true', to indicate that the reason was used.
+            request.currentReason = _reason;
         }
 
-        ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
+        Challenge storage challenge = request.challenges[request.lastChallengeID];
         Round storage round = challenge.rounds[0];
+
+        ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
         uint256 arbitrationCost = _arbitrationCost(arbitratorData);
         require(_contribute(round, Party.Challenger, arbitrationCost), "You must fully fund your side");
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
-        round.sideFunded = Party.None; // Set this back to 0, since it's no longer relevant as the new round is created.
 
         challenge.disputeID = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
             RULING_OPTIONS,
@@ -711,7 +685,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         disputeData.submissionID = _submissionID;
 
         request.disputed = true;
-        request.nbParallelDisputes++;
         challenge.lastRoundID++;
         request.lastChallengeID++;
 
@@ -773,7 +746,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         }
 
         Round storage round = challenge.rounds[challenge.lastRoundID];
-        require(_side != round.sideFunded, "Side is already funded");
+        Party firstFunded = round.sideFunded;
+        require(_side != firstFunded, "Side is already funded");
 
         emit AppealContribution(_submissionID, _challengeID, _side, msg.sender, msg.value);
 
@@ -782,10 +756,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
             arbitratorData.arbitratorExtraData
         );
         uint256 totalCost = appealCost.addCap((appealCost.mulCap(multiplier)) / MULTIPLIER_DIVISOR);
+
         if (_contribute(round, _side, totalCost)) {
-            if (round.sideFunded == Party.None) {
-                round.sideFunded = _side;
-            } else {
+            if (firstFunded != Party.None) {
                 // Both sides are fully funded. Create an appeal.
                 arbitratorData.arbitrator.appeal{value: appealCost}(
                     challenge.disputeID,
@@ -793,7 +766,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
                 );
                 challenge.lastRoundID++;
                 round.feeRewards = round.feeRewards.subCap(appealCost);
-                round.sideFunded = Party.None; // Set this back to default in the past round as it's no longer relevant.
             }
             emit HasPaidAppealFee(_submissionID, _challengeID, _side);
         }
@@ -806,7 +778,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         Submission storage submission = submissions[_submissionID];
         uint256 requestID = submission.lastRequestID;
         Request storage request = submission.requests[requestID];
-        require(block.timestamp - request.challengePeriodStart > challengePeriodDuration, "Can't execute yet");
+        require(!_isChallengePeriod(request), "Can't execute yet");
         require(!request.disputed, "The request is disputed");
         address payable requester;
         if (submission.status == Status.PendingRegistration) {
@@ -851,8 +823,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         if (endIndex > vouchCount) endIndex = vouchCount;
 
         Reason currentReason = request.currentReason;
-        // If the ultimate challenger is defined that means that the request was ruled in favor of the challenger.
-        bool applyPenalty = request.ultimateChallenger != address(0x0) &&
+        bool applyPenalty = request.challenges[request.lastChallengeID].ruling == Party.Challenger &&
             (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
         for (uint256 i = lastProcessedVouch; i < endIndex; i++) {
             Submission storage voucher = submissions[request.vouches[i]];
@@ -913,12 +884,18 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
                 beneficiaryContributions[uint256(Party.Requester)];
             reward = totalFeesInRound > 0 ? (claimableFees * round.feeRewards) / totalFeesInRound : 0;
         } else {
+            Challenge storage lastChallenge = request.challenges[request.lastChallengeID];
             // Challenger, who ultimately wins, will be able to get the deposit of the requester, even if he didn't participate in the initial dispute.
-            if (_round == 0 && _beneficiary == request.ultimateChallenger && _challengeID == 0) {
+            if (
+                _round == 0 &&
+                lastChallenge.ruling == Party.Challenger &&
+                _beneficiary == lastChallenge.challenger &&
+                _challengeID == 0
+            ) {
                 reward = round.feeRewards;
                 round.feeRewards = 0;
                 // This condition will prevent claiming a reward, intended for the ultimate challenger.
-            } else if (request.ultimateChallenger == address(0x0) || _challengeID != 0 || _round != 0) {
+            } else if (lastChallenge.ruling != Party.Challenger || _challengeID != 0 || _round != 0) {
                 uint256 paidFees = round.paidFees[uint256(ruling)];
                 reward = paidFees > 0 ? (beneficiaryContributions[uint256(ruling)] * round.feeRewards) / paidFees : 0;
             }
@@ -955,54 +932,34 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
 
         emit Ruling(IArbitrator(msg.sender), _disputeID, uint256(resultRuling));
 
-        bool markResolved;
-        if (submission.status == Status.PendingRemoval) {
-            if (resultRuling == Party.Requester) submission.registered = false;
-            markResolved = true;
-        } else if (submission.status == Status.PendingRegistration) {
+        bool markResolved = true;
+        if (submission.status == Status.PendingRegistration) {
             // For a registration request there can be more than one dispute.
             if (resultRuling == Party.Requester) {
-                if (request.nbParallelDisputes == 1) {
-                    // Check whether or not the requester won all of his previous disputes for current reason.
-                    if (!request.requesterLost) {
-                        if (request.usedReasons == FULL_REASONS_SET) {
-                            // All reasons being used means the request can't be challenged again, so we can update its status.
-                            submission.registered = true;
-                            submission.submissionTime = uint64(block.timestamp);
-                            markResolved = true;
-                        } else {
-                            // Refresh the state of the request so it can be challenged again.
-                            request.disputed = false;
-                            request.challengePeriodStart = uint64(block.timestamp);
-                            request.currentReason = Reason.None;
-                        }
-                    } else markResolved = true;
+                // Check whether or not the requester won all of his previous disputes for current reason.
+                if (!request.requesterLost) {
+                    if (request.usedReasons == FULL_REASONS_SET) {
+                        // All reasons being used means the request can't be challenged again, so we can update its status.
+                        submission.registered = true;
+                        submission.submissionTime = uint64(block.timestamp);
+                    } else {
+                        // Refresh the state of the request so it can be challenged again.
+                        request.disputed = false;
+                        request.challengePeriodStart = uint64(block.timestamp);
+                        request.currentReason = Reason.None;
+                        markResolved = false;
+                    }
                 }
                 // Challenger won or it’s a tie.
-            } else {
-                request.requesterLost = true;
-                // Update the status of the submission if there is no more disputes left.
-                if (request.nbParallelDisputes == 1) markResolved = true;
-
-                // Store the challenger that made the requester lose. Update the challenger if there is a duplicate on mainnet.
-                // This is done in order to incentivize challengers to search for duplicates among older submissions.
-                if (
-                    resultRuling == Party.Challenger &&
-                    (request.ultimateChallenger == address(0x0) ||
-                        (challenge.duplicateSubmissionChainID == 1 && request.currentDuplicateChainID != 1))
-                ) {
-                    request.ultimateChallenger = challenge.challenger;
-                    request.currentDuplicateChainID = challenge.duplicateSubmissionChainID;
-                }
-            }
-        }
+            } else request.requesterLost = true;
+        } else if (submission.status == Status.PendingRemoval && resultRuling == Party.Requester)
+            submission.registered = false;
 
         if (markResolved) {
             submission.status = Status.None;
             request.resolved = true;
         }
-        // Decrease the number of parallel disputes each time the dispute is resolved. Store the rulings of each dispute for correct distribution of rewards.
-        request.nbParallelDisputes--;
+        // Store the rulings of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
         emit ChallengeResolved(submissionID, requestID, challengeID);
     }
@@ -1081,6 +1038,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
         return block.timestamp >= _submissionTime.addCap64(submissionDuration.subCap64(renewalPeriodDuration));
     }
 
+    function _isChallengePeriod(Request storage _request) internal view returns (bool) {
+        return block.timestamp - _request.challengePeriodStart <= challengePeriodDuration;
+    }
+
     function _arbitrationCost(ArbitratorData storage _arbitratorData) internal view returns (uint256) {
         return _arbitratorData.arbitrator.arbitrationCost(_arbitratorData.arbitratorExtraData);
     }
@@ -1105,23 +1066,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
      */
     function getArbitratorDataListCount() external view returns (uint256) {
         return arbitratorDataList.length;
-    }
-
-    /** @dev Check whether the duplicate address has been used in challenging the request or not.
-     *  @param _submissionID The address of the submission to check.
-     *  @param _requestID The request to check.
-     *  @param _duplicateID The duplicate to check.
-     *  @param _duplicateChainID The chainID of the duplicate to check.
-     *  @return Whether the duplicate has been used.
-     */
-    function checkRequestDuplicates(
-        address _submissionID,
-        uint256 _requestID,
-        address _duplicateID,
-        uint256 _duplicateChainID
-    ) external view returns (bool) {
-        Request storage request = submissions[_submissionID].requests[_requestID];
-        return request.challengeDuplicates[_duplicateID][_duplicateChainID];
     }
 
     /** @dev Get the contributions made by a party for a given round of a given challenge of a request.
@@ -1185,19 +1129,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
             uint16 lastRoundID,
             address challenger,
             uint256 disputeID,
-            Party ruling,
-            uint256 duplicateSubmissionChainID
+            Party ruling
         )
     {
         Request storage request = submissions[_submissionID].requests[_requestID];
         Challenge storage challenge = request.challenges[_challengeID];
-        return (
-            challenge.lastRoundID,
-            challenge.challenger,
-            challenge.disputeID,
-            challenge.ruling,
-            challenge.duplicateSubmissionChainID
-        );
+        return (challenge.lastRoundID, challenge.challenger, challenge.disputeID, challenge.ruling);
     }
 
     /** @dev Get information of a request of a submission.
@@ -1212,11 +1149,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
             bool resolved,
             bool requesterLost,
             Reason currentReason,
-            uint16 nbParallelDisputes,
             uint16 lastChallengeID,
             uint16 arbitratorDataID,
             address payable requester,
-            address payable ultimateChallenger,
             uint8 usedReasons
         )
     {
@@ -1226,11 +1161,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence, Go
             request.resolved,
             request.requesterLost,
             request.currentReason,
-            request.nbParallelDisputes,
             request.lastChallengeID,
             request.arbitratorDataID,
             request.requester,
-            request.ultimateChallenger,
             request.usedReasons
         );
     }
