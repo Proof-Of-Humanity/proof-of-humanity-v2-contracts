@@ -49,9 +49,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
 
     // ========== EVENTS ==========
 
-    event BridgeAdded(address indexed _bridge, address indexed _foreignProxy);
-
-    event BridgeRemoved(address indexed _bridge);
+    event GatewayUpdated(address indexed _bridgeGateway, bool _active);
 
     // ========== MODIFIERS ==========
 
@@ -74,8 +72,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
 
     // ========== GOVERNANCE ==========
 
-    event GatewaysUpdated(address indexed _bridgeGateway, bool _active);
-
     /** @notice Adds bridge gateway contract address to whitelist
      *  @param _bridgeGateway the address of the new bridge gateway contract
      *  @param _remove whether to add/remove the gateway
@@ -85,7 +81,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         else require(!bridgeGateways[_bridgeGateway], "Bridge gateway already supported");
 
         bridgeGateways[_bridgeGateway] = !_remove;
-        emit GatewaysUpdated(_bridgeGateway, !_remove);
+        emit GatewayUpdated(_bridgeGateway, !_remove);
     }
 
     // ========== REQUESTS ==========
