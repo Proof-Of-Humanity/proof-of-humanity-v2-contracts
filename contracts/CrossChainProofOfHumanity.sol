@@ -5,7 +5,7 @@
  *  @deployments: []
  *  SPDX-License-Identifier: MIT
  */
-pragma solidity ^0.8;
+pragma solidity 0.8.11;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
@@ -13,6 +13,15 @@ import {Governable} from "./utils/Governable.sol";
 import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/ProofOfHumanityInterfaces.sol";
 import {ICrossChainProofOfHumanity} from "./interfaces/ICrossChainProofOfHumanity.sol";
+
+error CCPOH_UnsupportedGateway();
+error CCPOH_AlreadyUnsupported();
+error CCPOH_AlreadySupported();
+error CCPOH_OnlyFromPrimaryChain();
+error CCPOH_MustNotVouchAtTheMoment();
+error CCPOH_WrongStatus();
+error CCPOH_SubmissionTimeMismatch();
+error CCPOH_AlreadyTransferred();
 
 contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UUPSUpgradeable {
     // ========== STRUCTS ==========
@@ -54,7 +63,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     // ========== MODIFIERS ==========
 
     modifier onlyBridgeGateway(address _bridgeGateway) {
-        require(bridgeGateways[_bridgeGateway], "Bridge gateway not supported");
+        if (!bridgeGateways[_bridgeGateway]) revert CCPOH_UnsupportedGateway();
         _;
     }
 
@@ -77,8 +86,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
      *  @param _remove whether to add/remove the gateway
      */
     function setBridgeGateway(address _bridgeGateway, bool _remove) external onlyGovernor {
-        if (_remove) require(bridgeGateways[_bridgeGateway], "Bridge gateway already not supported");
-        else require(!bridgeGateways[_bridgeGateway], "Bridge gateway already supported");
+        if (_remove) {
+            if (!bridgeGateways[_bridgeGateway]) revert CCPOH_AlreadyUnsupported();
+        } else if (bridgeGateways[_bridgeGateway]) revert CCPOH_AlreadySupported();
 
         bridgeGateways[_bridgeGateway] = !_remove;
         emit GatewayUpdated(_bridgeGateway, !_remove);
@@ -94,14 +104,16 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         external
         onlyBridgeGateway(_bridgeGateway)
     {
-        (, uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+        (, uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         Submission storage submission = submissions[_submissionID];
-        if (!submission.isPrimaryChain && _isRegistered) submission.isPrimaryChain = true;
-        require(submission.isPrimaryChain, "Must update from primary chain");
+        if (!submission.isPrimaryChain) {
+            if (_isRegistered) submission.isPrimaryChain = true;
+            else revert CCPOH_OnlyFromPrimaryChain();
+        }
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(this.receiveSubmissionUpdate.selector, _submissionID, submissionTime, _isRegistered)
+            abi.encodeCall(this.receiveSubmissionUpdate, (_submissionID, submissionTime, _isRegistered))
         );
     }
 
@@ -110,8 +122,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
      */
     function transferSubmission(address _bridgeGateway) external onlyBridgeGateway(_bridgeGateway) {
         (, uint64 submissionTime, , bool hasVouched, ) = proofOfHumanity.getSubmissionInfo(msg.sender);
-        require(!hasVouched, "Must not vouch at the moment");
-        require(proofOfHumanity.isRegistered(msg.sender), "Must be registered to transfer");
+        if (hasVouched) revert CCPOH_MustNotVouchAtTheMoment();
+        if (!proofOfHumanity.isRegistered(msg.sender)) revert CCPOH_WrongStatus();
 
         proofOfHumanity.removeSubmissionManually(msg.sender);
 
@@ -126,7 +138,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         });
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(this.receiveSubmissionTransfer.selector, msg.sender, submissionTime, nonce)
+            abi.encodeCall(this.receiveSubmissionTransfer, (msg.sender, submissionTime, nonce))
         );
     }
 
@@ -135,18 +147,16 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
      */
     function retryFailedTransfer(address _submissionID) external {
         (Status status, uint64 submissionTime, bool registered, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
-        require(!registered && status == Status.None, "Wrong status");
+        if (registered || status != Status.None) revert CCPOH_WrongStatus();
 
         Transfer memory transfer = submissions[msg.sender].outgoing;
-        require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
-        require(submissionTime == transfer.submissionTime, "Submission time mismatch");
+        if (!bridgeGateways[transfer.bridgeGateway]) revert CCPOH_UnsupportedGateway();
+        if (submissionTime != transfer.submissionTime) revert CCPOH_SubmissionTimeMismatch();
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeWithSelector(
-                this.receiveSubmissionTransfer.selector,
-                _submissionID,
-                transfer.submissionTime,
-                transfer.transferHash
+            abi.encodeCall(
+                this.receiveSubmissionTransfer,
+                (_submissionID, transfer.submissionTime, transfer.transferHash)
             )
         );
     }
@@ -177,7 +187,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         uint64 _submissionTime,
         bytes32 _transferHash
     ) external override onlyBridgeGateway(msg.sender) {
-        require(!receivedTransferHashes[_transferHash], "Submission already transfered");
+        if (receivedTransferHashes[_transferHash]) revert CCPOH_AlreadyTransferred();
         receivedTransferHashes[_transferHash] = true;
 
         proofOfHumanity.addSubmissionManually(_submissionID, _submissionTime);

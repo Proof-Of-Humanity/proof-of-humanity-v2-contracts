@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8;
+pragma solidity 0.8.11;
+
+error OnlyGovernor();
 
 abstract contract Governable {
     /// @dev The address that can make governance changes to the parameters of the contract.
     address public governor;
 
     modifier onlyGovernor() {
-        require(msg.sender == governor, "Must be governor");
+        if (msg.sender != governor) revert OnlyGovernor();
         _;
     }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8;
+pragma solidity 0.8.11;
 
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
@@ -44,6 +44,7 @@ interface IProofOfHumanity is IProofOfHumanityBase {
     function removeSubmissionManually(address _submissionID) external;
 
     /* Views */
+    function submissionDuration() external view returns (uint64);
 
     function getSubmissionInfo(address _submissionID)
         external

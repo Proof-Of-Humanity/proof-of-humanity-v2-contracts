@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity ^0.8;
+pragma solidity 0.8.11;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
@@ -17,6 +17,8 @@ import {Governable} from "./utils/Governable.sol";
 import {Initializable} from "./utils/Initializable.sol";
 import {CappedMath} from "./utils/libraries/CappedMath.sol";
 import {IProofOfHumanity} from "./interfaces/ProofOfHumanityInterfaces.sol";
+
+import "./utils/PoHErrors.sol";
 
 /** @title ProofOfHumanity
  *  This contract is a curated registry for people. The users are identified by their address and can be added or removed through the request-challenge protocol.
@@ -63,9 +65,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         Status status; // The current status of the submission.
         bool registered; // Whether the submission is in the registry or not. Note that a registered submission won't have privileges (e.g. vouching) if its duration expired.
         bool hasVouched; // True if this submission used its vouch for another submission. This is set back to false once the vouch is processed.
-        uint16 lastRequestID; // The ID of the last request.
         uint64 submissionTime; // The time when the submission was accepted to the list.
-        mapping(uint256 => Request) requests; // Stores all the requests of the submission. requestID -> Request.
+        Request[] requests; // List of status change requests made for the submission.
     }
 
     struct Request {
@@ -79,6 +80,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         uint32 lastProcessedVouch; // Stores the index of the last processed vouch in the array of vouches. It is used for partial processing of the vouches in resolved submissions.
         uint64 challengePeriodStart; // Time when the submission can be challenged.
         address payable requester; // Address that made a request. It is left empty for the registration requests since it matches submissionID in that case.
+        address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged submission must pay the fines to this address.
         address[] vouches; // Stores the addresses of submissions that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeID -> Challenge.
     }
@@ -142,10 +144,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
     /* Modifiers */
 
     modifier onlyBridgeOrGovernor() {
-        require(
-            msg.sender == governor || msg.sender == crossChainProofOfHumanity,
-            "The caller must be the cross-chain instance or the governor"
-        );
+        if (msg.sender != governor && msg.sender != crossChainProofOfHumanity) revert POH_OnlyGovernorOrCrossChain();
         _;
     }
 
@@ -312,10 +311,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         onlyBridgeOrGovernor
     {
         Submission storage submission = submissions[_submissionID];
-        require(submission.status == Status.None, "Wrong status");
-        if (submission.submissionTime == 0) submissionCounter++;
+        if (submission.status != Status.None) revert POH_WrongStatus();
+
         submission.registered = true;
         submission.submissionTime = _submissionTime;
+        if (submission.requests.length == 0) {
+            submissionCounter++;
+            Request storage request = submission.requests.push();
+            request.arbitratorDataID = uint16(arbitratorDataList.length - 1);
+            request.resolved = true;
+        }
     }
 
     /** @dev Allow the governor to directly remove a registered entry from the list as a part of the seeding event.
@@ -323,7 +328,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function removeSubmissionManually(address _submissionID) external override onlyBridgeOrGovernor {
         Submission storage submission = submissions[_submissionID];
-        require(submission.registered && submission.status == Status.None, "Wrong status");
+        if (!submission.registered || submission.status != Status.None) revert POH_WrongStatus();
         submission.registered = false;
     }
 
@@ -344,7 +349,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         uint64 _renewalPeriodDuration,
         uint64 _challengePeriodDuration
     ) external onlyGovernor {
-        require(_challengePeriodDuration.addCap64(_renewalPeriodDuration) < _submissionDuration, "Incorrect inputs");
+        if (_challengePeriodDuration.addCap64(_renewalPeriodDuration) >= _submissionDuration)
+            revert POH_IncorrectDurationsInputs();
         submissionDuration = _submissionDuration;
         renewalPeriodDuration = _renewalPeriodDuration;
         challengePeriodDuration = _challengePeriodDuration;
@@ -425,40 +431,29 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
     // *       Requests       * //
     // ************************ //
 
-    /** @dev Make a request to add/reapply an entry to the list. Paying the full deposit right away is not required as it can be crowdfunded later.
+    /** @dev Make a request to add a new entry to the list. Paying the full deposit right away is not required as it can be crowdfunded later.
      *  @param _evidence A link to evidence using its URI.
      *  @param _name The name of the submitter. This parameter is for Subgraph only and it won't be used in this function.
      */
     function addSubmission(string calldata _evidence, string calldata _name) external payable {
         Submission storage submission = submissions[msg.sender];
-        require(submission.status == Status.None, "Wrong status");
-        if (submission.registered) {
-            require(_isRenewalPeriod(submission.submissionTime), "Can't reapply yet");
-            emit ReapplySubmission(msg.sender, submission.lastRequestID);
-        } else {
-            if (submission.lastRequestID == 0) submissionCounter++;
-            emit AddSubmission(msg.sender, submission.lastRequestID);
-        }
+        if (submission.registered) revert POH_WrongStatus();
+        if (submission.requests.length == 0) submissionCounter++;
+        emit AddSubmission(msg.sender, submission.requests.length);
+        _requestRegistration(msg.sender, _evidence);
+    }
 
-        submission.status = Status.Vouching;
-        Request storage request = submission.requests[++submission.lastRequestID];
-
-        uint256 arbitratorDataID = arbitratorDataList.length - 1;
-        request.arbitratorDataID = uint16(arbitratorDataID);
-
-        Round storage round = request.challenges[0].rounds[0];
-
-        ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataID];
-        uint256 totalCost = _arbitrationCost(arbitratorData).addCap(submissionBaseDeposit);
-        _contribute(round, Party.Requester, totalCost);
-
-        if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorData.arbitrator,
-                submission.lastRequestID + uint256(uint160(msg.sender)),
-                msg.sender,
-                _evidence
-            );
+    /** @dev Make a request to refresh a submissionDuration. Paying the full deposit right away is not required as it can be crowdfunded later.
+     *  Note that the user can reapply even when current submissionDuration has not expired, but only after the start of renewal period.
+     *  @param _evidence A link to evidence using its URI.
+     *  @param _name The name of the submitter. This parameter is for Subgraph only and it won't be used in this function.
+     */
+    function reapplySubmission(string calldata _evidence, string calldata _name) external payable {
+        Submission storage submission = submissions[msg.sender];
+        if (!submission.registered) revert POH_WrongStatus();
+        if (!_isRenewalPeriod(submission.submissionTime)) revert POH_NoReapplicationYet();
+        emit ReapplySubmission(msg.sender, submission.requests.length);
+        _requestRegistration(msg.sender, _evidence);
     }
 
     /** @dev Make a request to remove a submission from the list. Requires full deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
@@ -468,11 +463,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function removeSubmission(address _submissionID, string calldata _evidence) external payable {
         Submission storage submission = submissions[_submissionID];
-        require(submission.registered && submission.status == Status.None, "Wrong status");
-        require(!_isRenewalPeriod(submission.submissionTime), "Can't remove after renewal");
+        if (!submission.registered || submission.status != Status.None) revert POH_WrongStatus();
+        if (_isRenewalPeriod(submission.submissionTime)) revert POH_NoRemovalAfterRenewal();
         submission.status = Status.PendingRemoval;
 
-        Request storage request = submission.requests[++submission.lastRequestID];
+        Request storage request = submission.requests.push();
         request.requester = payable(msg.sender);
         request.challengePeriodStart = uint64(block.timestamp);
 
@@ -483,14 +478,14 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
 
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataID];
         uint256 totalCost = _arbitrationCost(arbitratorData).addCap(submissionBaseDeposit);
-        require(_contribute(round, Party.Requester, totalCost), "You must fully fund your side");
+        if (!_contribute(round, Party.Requester, totalCost)) revert POH_SideMustBeFullyFunded();
 
-        emit RemoveSubmission(msg.sender, _submissionID, submission.lastRequestID);
+        emit RemoveSubmission(msg.sender, _submissionID, _lastRequestIdx(submission));
 
         if (bytes(_evidence).length > 0)
             emit Evidence(
                 arbitratorData.arbitrator,
-                submission.lastRequestID + uint256(uint160(_submissionID)),
+                _lastRequestIdx(submission) + uint256(uint160(_submissionID)),
                 msg.sender,
                 _evidence
             );
@@ -501,8 +496,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function fundSubmission(address _submissionID) external payable {
         Submission storage submission = submissions[_submissionID];
-        require(submission.status == Status.Vouching, "Wrong status");
-        Request storage request = submission.requests[submission.lastRequestID];
+        if (submission.status != Status.Vouching) revert POH_WrongStatus();
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
         Challenge storage challenge = request.challenges[0];
         Round storage round = challenge.rounds[0];
 
@@ -532,12 +527,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function withdrawSubmission() external {
         Submission storage submission = submissions[msg.sender];
-        require(submission.status == Status.Vouching, "Wrong status");
-        Request storage request = submission.requests[submission.lastRequestID];
+        if (submission.status != Status.Vouching) revert POH_WrongStatus();
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
         submission.status = Status.None;
         request.resolved = true;
 
-        withdrawFeesAndRewards(payable(msg.sender), msg.sender, submission.lastRequestID, 0, 0); // Automatically withdraw for the requester.
+        withdrawFeesAndRewards(payable(msg.sender), msg.sender, _lastRequestIdx(submission), 0, 0); // Automatically withdraw for the requester.
     }
 
     /** @dev Change submission's state from Vouching to PendingRegistration if all conditions are met.
@@ -557,9 +552,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         uint256[] calldata _expirationTimestamps
     ) external {
         Submission storage submission = submissions[_submissionID];
-        require(submission.status == Status.Vouching, "Wrong status");
-        Request storage request = submission.requests[submission.lastRequestID];
-        require(request.challenges[0].rounds[0].sideFunded == Party.Requester, "Requester is not funded");
+        if (submission.status != Status.Vouching) revert POH_WrongStatus();
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
+        if (request.challenges[0].rounds[0].sideFunded != Party.Requester) revert POH_RequesterNotFunded();
 
         uint256 timeOffset = block.timestamp - submissionDuration; // Precompute the offset before the loop for efficiency and then compare it with the submission time to check the expiration.
 
@@ -584,7 +579,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
                     v := byte(0, mload(add(signature, 0x60)))
                 }
                 if (v < 27) v += 27;
-                require(v == 27 || v == 28, "Invalid signature");
+                if (v != 27 && v != 28) revert POH_InvalidVoucherSignature();
 
                 // Recover the signer's address.
                 voucherAddress = ecrecover(hash, v, r, s);
@@ -606,7 +601,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
                 submissions[_vouches[i]].hasVouched = true;
             }
         }
-        require(request.vouches.length >= requiredNumberOfVouches, "Not enough valid vouches");
+        if (request.vouches.length < requiredNumberOfVouches) revert POH_NotEnoughVouches();
         submission.status = Status.PendingRegistration;
         request.challengePeriodStart = uint64(block.timestamp);
     }
@@ -622,19 +617,19 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         string calldata _evidence
     ) external payable {
         Submission storage submission = submissions[_submissionID];
-        if (submission.status == Status.PendingRegistration)
-            require(_reason != Reason.None, "Reason must be specified");
-        else if (submission.status == Status.PendingRemoval)
-            require(_reason == Reason.None, "Reason must be left empty");
-        else revert("Wrong status");
+        if (submission.status == Status.PendingRegistration) {
+            if (_reason == Reason.None) revert POH_ReasonMustBeSpecified();
+        } else if (submission.status == Status.PendingRemoval) {
+            if (_reason != Reason.None) revert POH_ReasonMustBeEmpty();
+        } else revert POH_WrongStatus();
 
-        Request storage request = submission.requests[submission.lastRequestID];
-        require(!request.disputed, "The request is disputed");
-        require(_isChallengePeriod(request), "Time to challenge has passed");
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
+        if (request.disputed) revert POH_RequestIsDisputed();
+        if (!_isChallengePeriod(request)) revert POH_ChallengeTimePassed();
 
         if (request.currentReason != _reason) {
             uint8 reasonBit = uint8(1 << (uint256(_reason) - 1)); // Get the bit that corresponds with reason's index.
-            require((reasonBit & ~request.usedReasons) == reasonBit, "The reason has already been used");
+            if ((reasonBit & ~request.usedReasons) != reasonBit) revert POH_ReasonAlreadyUsed();
             request.usedReasons ^= reasonBit; // Mark the bit corresponding with reason's index as 'true', to indicate that the reason was used.
             request.currentReason = _reason;
         }
@@ -644,7 +639,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
 
         ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
         uint256 arbitrationCost = _arbitrationCost(arbitratorData);
-        require(_contribute(round, Party.Challenger, arbitrationCost), "You must fully fund your side");
+        if (!_contribute(round, Party.Challenger, arbitrationCost)) revert POH_SideMustBeFullyFunded();
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
 
         challenge.disputeID = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
@@ -660,12 +655,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         disputeData.submissionID = _submissionID;
 
         request.disputed = true;
-        challenge.lastRoundID++;
         request.lastChallengeID++;
+        challenge.lastRoundID++;
+        emit SubmissionChallenged(_submissionID, _lastRequestIdx(submission), disputeData.challengeID);
 
-        emit SubmissionChallenged(_submissionID, submission.lastRequestID, disputeData.challengeID);
-
-        uint256 evidenceGroupID = submission.lastRequestID + uint256(uint160(_submissionID));
+        uint256 evidenceGroupID = _lastRequestIdx(submission) + uint256(uint160(_submissionID));
 
         emit Dispute(
             arbitratorData.arbitrator,
@@ -692,13 +686,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
     ) external payable {
         require(_side != Party.None); // You can only fund either requester or challenger.
         Submission storage submission = submissions[_submissionID];
-        require(
-            submission.status == Status.PendingRegistration || submission.status == Status.PendingRemoval,
-            "Wrong status"
-        );
-        Request storage request = submission.requests[submission.lastRequestID];
-        require(request.disputed, "No dispute to appeal");
-        require(_challengeID < request.lastChallengeID, "Challenge out of bounds");
+        if (submission.status != Status.PendingRegistration && submission.status != Status.PendingRemoval)
+            revert POH_WrongStatus();
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
+        if (!request.disputed) revert POH_NoDisputeToAppeal();
+        if (_challengeID >= request.lastChallengeID) revert POH_ChallengeOutOfBounds();
 
         Challenge storage challenge = request.challenges[_challengeID];
         ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
@@ -706,23 +698,19 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         (uint256 appealPeriodStart, uint256 appealPeriodEnd) = arbitratorData.arbitrator.appealPeriod(
             challenge.disputeID
         );
-        require(block.timestamp >= appealPeriodStart && block.timestamp < appealPeriodEnd, "Appeal period is over");
+        if (block.timestamp < appealPeriodStart || block.timestamp >= appealPeriodEnd) revert POH_AppealPeriodOver();
 
         uint256 multiplier;
         Party winner = Party(arbitratorData.arbitrator.currentRuling(challenge.disputeID));
         if (winner == _side) multiplier = winnerStakeMultiplier;
         else if (winner == Party.None) multiplier = sharedStakeMultiplier;
-        else {
-            multiplier = loserStakeMultiplier;
-            require(
-                block.timestamp - appealPeriodStart < (appealPeriodEnd - appealPeriodStart) / 2,
-                "Appeal period is over for loser"
-            );
-        }
+        else if (block.timestamp - appealPeriodStart >= (appealPeriodEnd - appealPeriodStart) / 2)
+            revert POH_AppealPeriodOverForLoser();
+        else multiplier = loserStakeMultiplier;
 
         Round storage round = challenge.rounds[challenge.lastRoundID];
         Party firstFunded = round.sideFunded;
-        require(_side != firstFunded, "Side is already funded");
+        if (_side == firstFunded) revert POH_SideAlreadyFunded();
 
         emit AppealContribution(_submissionID, _challengeID, _side, msg.sender, msg.value);
 
@@ -751,10 +739,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function executeRequest(address _submissionID) external {
         Submission storage submission = submissions[_submissionID];
-        uint256 requestID = submission.lastRequestID;
+        uint256 requestID = _lastRequestIdx(submission);
         Request storage request = submission.requests[requestID];
-        require(!_isChallengePeriod(request), "Can't execute yet");
-        require(!request.disputed, "The request is disputed");
+        if (_isChallengePeriod(request)) revert POH_CantExecuteYet();
+        if (request.disputed) revert POH_RequestIsDisputed();
         address payable requester;
         if (submission.status == Status.PendingRegistration) {
             // It is possible for the requester to lose without a dispute if he was penalized for bad vouching while reapplying.
@@ -766,7 +754,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         } else if (submission.status == Status.PendingRemoval) {
             submission.registered = false;
             requester = request.requester;
-        } else revert("Incorrect status.");
+        } else revert POH_WrongStatus();
 
         submission.status = Status.None;
         request.resolved = true;
@@ -789,7 +777,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
     ) public {
         Submission storage submission = submissions[_submissionID];
         Request storage request = submission.requests[_requestID];
-        require(request.resolved, "Submission must be resolved");
+        if (!request.resolved) revert POH_SubmissionMustBeResolved();
 
         uint256 lastProcessedVouch = request.lastProcessedVouch;
         uint256 endIndex = _iterations.addCap(lastProcessedVouch);
@@ -798,7 +786,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         if (endIndex > vouchCount) endIndex = vouchCount;
 
         Reason currentReason = request.currentReason;
-        bool applyPenalty = request.challenges[request.lastChallengeID].ruling == Party.Challenger &&
+        bool applyPenalty = request.ultimateChallenger != address(0x0) &&
             (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
         for (uint256 i = lastProcessedVouch; i < endIndex; i++) {
             Submission storage voucher = submissions[request.vouches[i]];
@@ -806,7 +794,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
             if (applyPenalty) {
                 // Check the situation when vouching address is in the middle of reapplication process.
                 if (voucher.status == Status.Vouching || voucher.status == Status.PendingRegistration)
-                    voucher.requests[voucher.lastRequestID].requesterLost = true;
+                    voucher.requests[_lastRequestIdx(voucher)].requesterLost = true;
 
                 voucher.registered = false;
             }
@@ -832,8 +820,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         Request storage request = submission.requests[_requestID];
         Challenge storage challenge = request.challenges[_challengeID];
         Round storage round = challenge.rounds[_round];
-        require(request.resolved, "Submission must be resolved");
-        require(_beneficiary != address(0x0), "Beneficiary must not be empty");
+        if (!request.resolved) revert POH_SubmissionMustBeResolved();
+        if (_beneficiary == address(0x0)) revert POH_BeneficiaryMustNotBeZero();
 
         Party ruling = challenge.ruling;
         uint256 reward;
@@ -851,18 +839,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
                 beneficiaryContributions[uint256(Party.Requester)];
             reward = totalFeesInRound > 0 ? (claimableFees * round.feeRewards) / totalFeesInRound : 0;
         } else {
-            Challenge storage lastChallenge = request.challenges[request.lastChallengeID];
             // Challenger, who ultimately wins, will be able to get the deposit of the requester, even if he didn't participate in the initial dispute.
-            if (
-                _round == 0 &&
-                lastChallenge.ruling == Party.Challenger &&
-                _beneficiary == lastChallenge.challenger &&
-                _challengeID == 0
-            ) {
+            if (_beneficiary == request.ultimateChallenger && _challengeID == 0 && _round == 0) {
                 reward = round.feeRewards;
                 round.feeRewards = 0;
                 // This condition will prevent claiming a reward, intended for the ultimate challenger.
-            } else if (lastChallenge.ruling != Party.Challenger || _challengeID != 0 || _round != 0) {
+            } else if (request.ultimateChallenger == address(0x0) || _challengeID != 0 || _round != 0) {
                 uint256 paidFees = round.paidFees[uint256(ruling)];
                 reward = paidFees > 0 ? (beneficiaryContributions[uint256(ruling)] * round.feeRewards) / paidFees : 0;
             }
@@ -882,7 +864,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         DisputeData storage disputeData = arbitratorDisputeIDToDisputeData[msg.sender][_disputeID];
         address submissionID = disputeData.submissionID;
         Submission storage submission = submissions[submissionID];
-        uint256 requestID = submission.lastRequestID;
+        uint256 requestID = _lastRequestIdx(submission);
         Request storage request = submission.requests[requestID];
         uint256 challengeID = disputeData.challengeID;
         Challenge storage challenge = request.challenges[challengeID];
@@ -918,7 +900,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
                     }
                 }
                 // Challenger won or it’s a tie.
-            } else request.requesterLost = true;
+            } else {
+                request.requesterLost = true;
+                if (resultRuling == Party.Challenger) request.ultimateChallenger = challenge.challenger;
+            }
         } else if (submission.status == Status.PendingRemoval && resultRuling == Party.Requester)
             submission.registered = false;
 
@@ -937,18 +922,46 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function submitEvidence(address _submissionID, string calldata _evidence) external {
         Submission storage submission = submissions[_submissionID];
-        Request storage request = submission.requests[submission.lastRequestID];
+        Request storage request = submission.requests[_lastRequestIdx(submission)];
         ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
 
         emit Evidence(
             arbitratorData.arbitrator,
-            submission.lastRequestID + uint256(uint160(_submissionID)),
+            _lastRequestIdx(submission) + uint256(uint160(_submissionID)),
             msg.sender,
             _evidence
         );
     }
 
     /* Internal */
+    /** @dev Make a request to register/reapply the submission. Paying the full deposit right away is not required as it can be crowdfunded later.
+     *  @param _submissionID The address of the submission.
+     *  @param _evidence A link to evidence using its URI.
+     */
+    function _requestRegistration(address _submissionID, string memory _evidence) internal {
+        Submission storage submission = submissions[_submissionID];
+        if (submission.status != Status.None) revert POH_WrongStatus();
+        submission.status = Status.Vouching;
+
+        Request storage request = submission.requests.push();
+
+        uint256 arbitratorDataID = arbitratorDataList.length - 1;
+        request.arbitratorDataID = uint16(arbitratorDataID);
+
+        Round storage round = request.challenges[0].rounds[0];
+
+        ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataID];
+        uint256 totalCost = _arbitrationCost(arbitratorData).addCap(submissionBaseDeposit);
+        _contribute(round, Party.Requester, totalCost);
+
+        if (bytes(_evidence).length > 0)
+            emit Evidence(
+                arbitratorData.arbitrator,
+                _lastRequestIdx(submission) + uint256(uint160(msg.sender)),
+                msg.sender,
+                _evidence
+            );
+    }
 
     /** @dev Make a fee contribution.
      *  @param _round The round to contribute to.
@@ -969,7 +982,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
             remainingETH = msg.value - requiredAmount;
 
             paidInFull = true;
-            _round.sideFunded = _side;
+            _round.sideFunded = _round.sideFunded == Party.None ? _side : Party.None;
         }
 
         _round.contributions[msg.sender][uint256(_side)] += contribution;
@@ -1006,6 +1019,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         return _arbitratorData.arbitrator.arbitrationCost(_arbitratorData.arbitratorExtraData);
     }
 
+    function _lastRequestIdx(Submission storage _submission) internal view returns (uint256) {
+        return _submission.requests.length - 1;
+    }
+
     // ************************ //
     // *       Getters        * //
     // ************************ //
@@ -1016,7 +1033,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      */
     function isRegistered(address _submissionID) external view override returns (bool) {
         Submission storage submission = submissions[_submissionID];
-        return submission.registered && (block.timestamp - submission.submissionTime <= submissionDuration);
+        return submission.registered && block.timestamp - submission.submissionTime <= submissionDuration;
     }
 
     /** @dev Get the number of times the arbitrator data was updated.
@@ -1031,7 +1048,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
      *  @param _requestID The request to query.
      *  @param _challengeID the challenge to query.
      *  @param _round The round to query.
-     *  @param _contributor The
+     *  @param _contributor The address of the contributor.
+     *  @return The contributions.
      */
     function getContributions(
         address _submissionID,
@@ -1039,11 +1057,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
         uint256 _challengeID,
         uint256 _round,
         address _contributor
-    ) external view returns (uint256[3] memory contributions) {
+    ) external view returns (uint256[3] memory) {
         Request storage request = submissions[_submissionID].requests[_requestID];
         Challenge storage challenge = request.challenges[_challengeID];
         Round storage round = challenge.rounds[_round];
-        contributions = round.contributions[_contributor];
+        return round.contributions[_contributor];
     }
 
     /** @dev Return the information of the submission. Includes length of requests array.
@@ -1067,7 +1085,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
             submission.submissionTime,
             submission.registered,
             submission.hasVouched,
-            submission.lastRequestID
+            submission.requests.length
         );
     }
 
@@ -1110,6 +1128,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
             uint16 lastChallengeID,
             uint16 arbitratorDataID,
             address payable requester,
+            address payable ultimateChallenger,
             uint8 usedReasons
         )
     {
@@ -1122,6 +1141,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence, Governable
             request.lastChallengeID,
             request.arbitratorDataID,
             request.requester,
+            request.ultimateChallenger,
             request.usedReasons
         );
     }

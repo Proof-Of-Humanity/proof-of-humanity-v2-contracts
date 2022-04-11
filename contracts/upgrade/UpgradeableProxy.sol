@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8;
+pragma solidity 0.8.11;
+
+error UPG_ConstructionFailed();
+error UPG_DelegatecallFailed();
 
 contract UpgradeableProxy {
     //keccak256("proof-of-humanity.proxiable")
@@ -11,12 +14,12 @@ contract UpgradeableProxy {
         }
 
         (bool success, ) = _implementation.delegatecall(_constructData);
-        require(success, "Construction failed");
+        if (!success) revert UPG_ConstructionFailed();
     }
 
     function _functionDelegateCall(bytes memory data) internal {
         (bool success, ) = _getImplementation().delegatecall(data);
-        require(success, "Delegatecall failed");
+        if (!success) revert UPG_DelegatecallFailed();
     }
 
     function _delegate(address _implementation) internal {
