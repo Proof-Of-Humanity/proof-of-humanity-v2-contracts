@@ -7,27 +7,22 @@
  */
 pragma solidity 0.8.11;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+// import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-import {Governable} from "./utils/Governable.sol";
 import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
-import {IProofOfHumanity} from "./interfaces/ProofOfHumanityInterfaces.sol";
+import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 import {ICrossChainProofOfHumanity} from "./interfaces/ICrossChainProofOfHumanity.sol";
 
-error CCPOH_UnsupportedGateway();
-error CCPOH_AlreadyUnsupported();
-error CCPOH_AlreadySupported();
-error CCPOH_OnlyFromPrimaryChain();
-error CCPOH_MustNotVouchAtTheMoment();
-error CCPOH_WrongStatus();
-error CCPOH_SubmissionTimeMismatch();
-error CCPOH_AlreadyTransferred();
-
-contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UUPSUpgradeable {
+// UUPSUpgradeable
+contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== STRUCTS ==========
 
     struct Transfer {
+        bool tried; // whether the transfer has been tried; if true, it can be retried
+        uint64 blockNumber; // the block number transfer was allowed
+        uint64 expiration; // when the transfer window expires
         uint64 submissionTime; // submissionTime at the moment of transfer
+        uint160 qid; // the unique id correspondinf to the submission to transfer
         address bridgeGateway; // bridge gateway used for the transfer
         bytes32 transferHash; // unique hash of the transfer == keccak256(submissionID, chainID, nonce)
     }
@@ -41,11 +36,17 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
 
     // ========== STORAGE ==========
 
+    /// @dev Indicates that the contract has been initialized.
+    bool public initialized;
+
+    /// @dev The address that can make governance changes to the parameters of the contract.
+    address public governor;
+
     /// @dev Instance of the ProofOfHumanity contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @dev Mapping of the registered submissions
-    mapping(address => Submission) public submissions;
+    /// @dev Time window in which a transfer can be initiated after allowing it.
+    uint64 public transferWindowDuration = 1 hours;
 
     /// @dev nonce to be used as transfer hash
     bytes32 public nonce;
@@ -56,14 +57,28 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
     /// @dev Whitelist of trusted bridge gateway contracts
     mapping(address => bool) public bridgeGateways;
 
+    /// @dev Mapping of the registered submissions
+    mapping(address => Submission) public submissions;
+
     // ========== EVENTS ==========
 
     event GatewayUpdated(address indexed _bridgeGateway, bool _active);
 
     // ========== MODIFIERS ==========
 
+    modifier initializer() {
+        require(!initialized);
+        initialized = true;
+        _;
+    }
+
+    modifier onlyGovernor() {
+        require(msg.sender == governor);
+        _;
+    }
+
     modifier onlyBridgeGateway(address _bridgeGateway) {
-        if (!bridgeGateways[_bridgeGateway]) revert CCPOH_UnsupportedGateway();
+        require(bridgeGateways[_bridgeGateway]);
         _;
     }
 
@@ -77,18 +92,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         proofOfHumanity = _proofOfHumanity;
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyGovernor {}
-
     // ========== GOVERNANCE ==========
+
+    /** @dev Change the governor of the contract.
+     *  @param _governor The address of the new governor.
+     */
+    function changeGovernor(address _governor) external onlyGovernor {
+        governor = _governor;
+    }
 
     /** @notice Adds bridge gateway contract address to whitelist
      *  @param _bridgeGateway the address of the new bridge gateway contract
      *  @param _remove whether to add/remove the gateway
      */
     function setBridgeGateway(address _bridgeGateway, bool _remove) external onlyGovernor {
-        if (_remove) {
-            if (!bridgeGateways[_bridgeGateway]) revert CCPOH_AlreadyUnsupported();
-        } else if (bridgeGateways[_bridgeGateway]) revert CCPOH_AlreadySupported();
+        if (_remove) require(bridgeGateways[_bridgeGateway]);
+        else require(!bridgeGateways[_bridgeGateway]);
 
         bridgeGateways[_bridgeGateway] = !_remove;
         emit GatewayUpdated(_bridgeGateway, !_remove);
@@ -104,41 +123,52 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
         external
         onlyBridgeGateway(_bridgeGateway)
     {
-        (, uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
+        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         Submission storage submission = submissions[_submissionID];
-        if (!submission.isPrimaryChain) {
-            if (_isRegistered) submission.isPrimaryChain = true;
-            else revert CCPOH_OnlyFromPrimaryChain();
-        }
+        require(submission.isPrimaryChain || _isRegistered);
+        submission.isPrimaryChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveSubmissionUpdate, (_submissionID, submissionTime, _isRegistered))
+            abi.encodeCall(this.receiveUpdate, (_submissionID, submissionTime, _isRegistered))
         );
     }
 
-    /** @notice Transfers the submission to the foreign chain
-     *  @param _bridgeGateway address of the bridge gateway to use
+    /** @notice Allow a transfer to be executed during the transfer window
+     *  Used for frontrunning protection
      */
-    function transferSubmission(address _bridgeGateway) external onlyBridgeGateway(_bridgeGateway) {
-        (, uint64 submissionTime, , bool hasVouched, ) = proofOfHumanity.getSubmissionInfo(msg.sender);
-        if (hasVouched) revert CCPOH_MustNotVouchAtTheMoment();
-        if (!proofOfHumanity.isRegistered(msg.sender)) revert CCPOH_WrongStatus();
+    function allowTransfer() external {
+        Transfer storage transfer = submissions[msg.sender].outgoing;
+        transfer.blockNumber = uint64(block.number);
+        transfer.expiration = uint64(block.timestamp) + transferWindowDuration;
+    }
 
-        proofOfHumanity.removeSubmissionManually(msg.sender);
+    /** @notice Execute transfering the submission to the foreign chain
+     *  @param _bridgeGateway address of the bridge gateway to use
+     *  @param _submissionID submission corresponding to the transfer to initiate
+     */
+    function executeTransfer(address _bridgeGateway, address _submissionID) external onlyBridgeGateway(_bridgeGateway) {
+        Submission storage submission = submissions[_submissionID];
+        Transfer storage transfer = submission.outgoing;
+        require(transfer.blockNumber > uint64(block.number) && block.timestamp < transfer.expiration);
 
-        Submission storage submission = submissions[msg.sender];
-        _updateSubmission(submission, true, submissionTime, false);
+        proofOfHumanity.revokeHumanityManually(_submissionID);
+
+        (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+
+        submission.registered = true;
+        submission.submissionTime = submissionTime;
+        submission.isPrimaryChain = false;
 
         nonce = keccak256(abi.encodePacked(msg.sender, block.chainid, nonce));
-        submission.outgoing = Transfer({
-            submissionTime: submissionTime,
-            bridgeGateway: _bridgeGateway,
-            transferHash: nonce
-        });
+        transfer.transferHash = nonce;
+        transfer.submissionTime = submissionTime;
+        transfer.qid = qid;
+        transfer.bridgeGateway = _bridgeGateway;
+        transfer.tried = true;
 
-        IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveSubmissionTransfer, (msg.sender, submissionTime, nonce))
+        IBridgeGateway(transfer.bridgeGateway).sendMessage(
+            abi.encodeCall(this.receiveTransfer, (qid, _submissionID, submissionTime, nonce))
         );
     }
 
@@ -146,17 +176,17 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
      *  @param _submissionID ID of the submission to retry transfer for
      */
     function retryFailedTransfer(address _submissionID) external {
-        (Status status, uint64 submissionTime, bool registered, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
-        if (registered || status != Status.None) revert CCPOH_WrongStatus();
+        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
 
         Transfer memory transfer = submissions[msg.sender].outgoing;
-        if (!bridgeGateways[transfer.bridgeGateway]) revert CCPOH_UnsupportedGateway();
-        if (submissionTime != transfer.submissionTime) revert CCPOH_SubmissionTimeMismatch();
+        require(transfer.tried);
+        require(submissionTime == transfer.submissionTime);
+        require(bridgeGateways[transfer.bridgeGateway]);
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
             abi.encodeCall(
-                this.receiveSubmissionTransfer,
-                (_submissionID, transfer.submissionTime, transfer.transferHash)
+                this.receiveTransfer,
+                (transfer.qid, _submissionID, transfer.submissionTime, transfer.transferHash)
             )
         );
     }
@@ -168,55 +198,43 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity, Governable, UU
      *  @param _submissionTime time when the submission was last accepted to the list.
      *  @param _isRegistered registration status of the submission
      */
-    function receiveSubmissionUpdate(
+    function receiveUpdate(
         address _submissionID,
         uint64 _submissionTime,
         bool _isRegistered
     ) external override onlyBridgeGateway(msg.sender) {
-        _updateSubmission(submissions[_submissionID], _isRegistered, _submissionTime, false);
-        emit SubmissionUpdated(_submissionID, _submissionTime, _isRegistered);
+        Submission storage submission = submissions[_submissionID];
+        submission.registered = _isRegistered;
+        submission.submissionTime = _submissionTime;
+        submission.isPrimaryChain = false;
+        emit UpdateReceived(_submissionID, _submissionTime, _isRegistered);
     }
 
     /** @notice Receives the transfered submission from the foreign proxy
+     *  @param _qid unique ID of the submission
      *  @param _submissionID ID of the transfered submission
      *  @param _submissionTime time when the submission was last accepted to the list.
      *  @param _transferHash hash of the transfer.
      */
-    function receiveSubmissionTransfer(
+    function receiveTransfer(
+        uint160 _qid,
         address _submissionID,
         uint64 _submissionTime,
         bytes32 _transferHash
     ) external override onlyBridgeGateway(msg.sender) {
-        if (receivedTransferHashes[_transferHash]) revert CCPOH_AlreadyTransferred();
+        require(!receivedTransferHashes[_transferHash]);
+        proofOfHumanity.acceptHumanityManually(_qid, _submissionID, _submissionTime);
+        Submission storage submission = submissions[_submissionID];
+        submission.registered = true;
+        submission.submissionTime = _submissionTime;
+        submission.isPrimaryChain = true;
         receivedTransferHashes[_transferHash] = true;
-
-        proofOfHumanity.addSubmissionManually(_submissionID, _submissionTime);
-        _updateSubmission(submissions[_submissionID], true, _submissionTime, true);
-        emit SubmissionTransfered(_submissionID);
-    }
-
-    // ========== INTERNAL ==========
-
-    /** @notice Updates the submission attributes
-     *  @param _submission the submission to update
-     *  @param _isRegistered registration status of the submission
-     *  @param _submissionTime time when the submission was last accepted to the list
-     *  @param _isPrimaryChain whether current chain is primary chain of the submission
-     */
-    function _updateSubmission(
-        Submission storage _submission,
-        bool _isRegistered,
-        uint64 _submissionTime,
-        bool _isPrimaryChain
-    ) internal {
-        _submission.registered = _isRegistered;
-        _submission.submissionTime = _submissionTime;
-        _submission.isPrimaryChain = _isPrimaryChain;
+        emit TransferReceived(_submissionID);
     }
 
     // ========== VIEWS ==========
 
-    function isRegistered(address _submissionID) external view override returns (bool) {
+    function isRegistered(address _submissionID) external view returns (bool) {
         Submission memory submission = submissions[_submissionID];
         return
             proofOfHumanity.isRegistered(_submissionID) ||

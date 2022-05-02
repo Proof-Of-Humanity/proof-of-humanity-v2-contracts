@@ -7,7 +7,7 @@ error UPG_UnsupportedProxiableUUID();
 error UPG_NotUUPS();
 
 abstract contract UpgradeableProxiable {
-    //keccak256("proof-of-humanity.proxiable")
+    // keccak256("proof-of-humanity.proxiable")
     bytes32 private constant _IMPLEMENTATION_SLOT = 0x26974a05cdcf64ad7ce50c30741f81d31ef71478fe0381e3c11c9efc2e25c538;
 
     /// @custom:oz-upgrades-unsafe-allow state-variable-immutable state-variable-assignment

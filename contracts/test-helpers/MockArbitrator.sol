@@ -64,16 +64,9 @@ contract MockArbitrator is IArbitrator, IArbitrable {
 
     /** @dev Constructs the `AppealableArbitrator` contract.
      *  @param _arbitrationPrice The amount to be paid for arbitration.
-     *  @param _arbitrator The back up arbitrator.
-     *  @param _arbitratorExtraData Not used by this contract.
      *  @param _timeOut The time out for the appeal period.
      */
-    constructor(
-        uint256 _arbitrationPrice,
-        IArbitrator _arbitrator,
-        bytes memory _arbitratorExtraData,
-        uint256 _timeOut
-    ) {
+    constructor(uint256 _arbitrationPrice, uint256 _timeOut) {
         arbitrationPrice = _arbitrationPrice;
         timeOut = _timeOut;
     }
