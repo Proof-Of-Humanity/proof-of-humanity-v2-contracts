@@ -27,7 +27,6 @@ import {Reason} from "./utils/enums/Reason.sol";
  *  NOTE: This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
-
 contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     using CappedMath for uint256;
     using CappedMath for uint64;
@@ -45,6 +44,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /* Structs */
 
+    /** @dev Struct corresponding to an unique id.
+     *  A submitter make requests to become the owner of the Humanity.
+     *  When someone passes the vouching phase, and the Humanity has no status, it puts the Humanity in PendingAcceptance status.
+     *  Anyone can request the revokal of the Humanity, putting it in the PendingRevokal status.
+     *  Multiple submitters can be in vouching phase for the same humanity. Once one of them advances to PendingAcceptance, it locks the Humanity for the others to apply.
+     */
     struct Humanity {
         uint64 submissionTime; // The time when the humanity was last accepted.
         Status status; // The current status of the humanity.
@@ -119,7 +124,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     // Note that to ensure correct contract behaviour the sum of challengePeriodDuration and renewalPeriodDuration should be less than submissionDuration.
     uint64 public override submissionDuration; // Time after which the registered submission will no longer be considered registered. The submitter has to reapply to the list to refresh it.
     uint64 public renewalPeriodDuration; //  The duration of the period when the registered submission can reapply.
-    uint64 public challengePeriodDuration; // The time after which a request becomes executable if not challenged. Note that this value should be less than the time spent on potential dispute's resolution, to avoid complications of parallel dispute handling.
+    uint64 public challengePeriodDuration; // The time after which a request becomes executable if not challenged.
 
     uint64 public requiredNumberOfVouches; // The number of registered users that have to vouch for a new registration request in order for it to enter PendingAcceptance state.
 
@@ -127,7 +132,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 public winnerStakeMultiplier; // Multiplier for calculating the fee stake paid by the party that won the previous round.
     uint256 public loserStakeMultiplier; // Multiplier for calculating the fee stake paid by the party that lost the previous round.
 
-    uint256 public submissionCounter; // The total count of all submissions that made a registration request at some point. Includes manually added submissions as well.
+    uint256 public soulsCounter; // The total count of all submissions that made a registration request at some point. Includes manually added submissions as well.
 
     ArbitratorData[] public arbitratorDataList; // Stores the arbitrator data of the contract. Updated each time the data is changed.
 
@@ -299,8 +304,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         );
     }
 
-    // function _authorizeUpgrade() internal override onlyGovernor {}
-
     /* External and Public */
 
     // ************************ //
@@ -318,16 +321,15 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint64 _submissionTime
     ) external override onlyCrossChain {
         Submission storage submission = submissions[_submissionID];
-        Humanity storage humanity = qids[submission.qid];
-        if (humanity.owner == _submissionID) delete humanity.owner;
-        humanity = qids[_qid];
+        Humanity storage humanity = qids[_qid];
 
-        require((humanity.owner == address(0) || _isRenewalPeriod(humanity.submissionTime)));
+        require(!isHumanityActive(_qid));
         require(humanity.status == Status.None && !submission.pendingVouching);
 
-        if (humanity.requests.length == 0) submissionCounter++;
+        uint256 requestID = humanity.requests.length;
+        if (requestID == 0) soulsCounter++;
         submission.qid = _qid;
-        submission.lastRequestID = humanity.requests.length;
+        submission.lastRequestID = requestID;
         humanity.owner = _submissionID;
         humanity.submissionTime = _submissionTime;
         humanity.requests.push().resolved = true;
@@ -339,8 +341,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     function revokeHumanityManually(address _submissionID) external override onlyCrossChain {
         Submission storage submission = submissions[_submissionID];
         Humanity storage humanity = qids[submission.qid];
+
         require(isRegistered(_submissionID) && humanity.status == Status.None);
-        require(!submission.hasVouched); // Submission must not have vouched at the moment
+
+        // Submission must not have vouched at the moment
+        require(!submission.hasVouched);
+
         delete humanity.owner;
     }
 
@@ -459,55 +465,55 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         string calldata _evidence,
         string calldata _name
     ) external payable {
-        Submission storage submission = submissions[msg.sender];
+        // For UX, qid parameter can be 0, in which case it is considered the sender wants to get the default value based on the address
         uint160 qid = _qid == 0 ? uint160(msg.sender) : _qid;
-        Humanity storage humanity = qids[submission.qid];
-        if (humanity.owner == msg.sender) require(qid == submission.qid && _isRenewalPeriod(humanity.submissionTime));
-        else {
-            humanity = qids[qid];
-            require(humanity.owner == address(0) || _isRenewalPeriod(humanity.submissionTime));
-        }
-        require(humanity.status == Status.None && !submission.pendingVouching);
-        uint256 nbRequests = humanity.requests.length;
 
-        emit AddSubmission(msg.sender, nbRequests);
+        // The sender must be not registered and the humanity not active
+        require(!isRegistered(msg.sender) && !isHumanityActive(qid));
 
-        if (nbRequests == 0) submissionCounter++;
-        submission.lastRequestID = nbRequests;
-        submission.pendingVouching = true;
+        Submission storage submission = submissions[msg.sender];
         submission.qid = qid;
 
-        Request storage request = humanity.requests.push();
-        request.requester = payable(msg.sender);
-        uint256 arbitratorDataID = arbitratorDataList.length - 1;
-        request.arbitratorDataID = uint16(arbitratorDataID);
+        uint256 requestID = _requestHumanity(qids[qid], submission, _evidence);
 
-        Round storage round = request.challenges[0].rounds[0];
-        uint256 totalCost = _arbitrationCost(arbitratorDataList[arbitratorDataID]).addCap(submissionBaseDeposit);
-        _contribute(round, Party.Requester, totalCost);
+        // If humanity has not had any requests before on this contract, increase the counter
+        if (requestID == 0) soulsCounter++;
 
-        if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorDataList[arbitratorDataID].arbitrator,
-                nbRequests + uint256(qid),
-                msg.sender,
-                _evidence
-            );
+        emit AddSubmission(msg.sender, requestID);
+    }
+
+    /** @dev Make a request to renew humanity's submissionDuration. Paying the full deposit right away is not required as it can be crowdfunded later.
+     *  Note that the user can reapply even when current submissionDuration has not expired, but only after the start of renewal period.
+     *  @param _evidence A link to evidence using its URI.
+     *  @param _name The name of the submitter. This parameter is for Subgraph only and it won't be used in this function.
+     */
+    function renewHumanity(string calldata _evidence, string calldata _name) external {
+        Submission storage submission = submissions[msg.sender];
+        Humanity storage humanity = qids[submission.qid];
+
+        // The sender must be the owner of the humanity and there must be renewal period
+        require(humanity.owner == msg.sender && _isRenewalPeriod(humanity.submissionTime));
+
+        uint256 requestID = _requestHumanity(humanity, submission, _evidence);
+
+        emit ReapplySubmission(msg.sender, requestID);
     }
 
     /** @dev Make a request to revoke a humanity from the list. Requires full deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
-     *  Note that this request can't be made during the renewal period to avoid spam leading to submission's expiration.
      *  @param _qid The unique id of the humanity to revoke.
      *  @param _evidence A link to evidence using its URI.
      */
     function revokeHumanity(uint160 _qid, string calldata _evidence) external payable {
         Humanity storage humanity = qids[_qid];
+
+        // Humanity must have an owner to revoke and must have no status
         require(humanity.owner != address(0x0) && humanity.status == Status.None);
+
+        // The request can't be made during the renewal period to avoid spam leading to submission's expiration.
         require(!_isRenewalPeriod(humanity.submissionTime));
 
-        emit RemoveSubmission(msg.sender, _qid, humanity.requests.length);
-
         humanity.status = Status.PendingRevokal;
+        uint256 requestID = humanity.requests.length;
 
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
@@ -518,7 +524,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Round storage round = request.challenges[0].rounds[0];
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataID];
         uint256 totalCost = _arbitrationCost(arbitratorData).addCap(submissionBaseDeposit);
+
+        // Must be fully paid
         require(_contribute(round, Party.Requester, totalCost));
+
+        emit RemoveSubmission(msg.sender, _qid, requestID);
 
         if (bytes(_evidence).length > 0)
             emit Evidence(
@@ -537,9 +547,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = qids[submission.qid].requests[submission.lastRequestID];
         Round storage round = request.challenges[0].rounds[0];
 
-        uint256 totalCost = _arbitrationCost(arbitratorDataList[request.arbitratorDataID]).addCap(
-            submissionBaseDeposit
-        );
+        ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataID];
+        uint256 totalCost = _arbitrationCost(arbitratorData).addCap(submissionBaseDeposit);
         _contribute(round, Party.Requester, totalCost);
     }
 
@@ -778,6 +787,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanity.requests[requester.lastRequestID];
         require(!request.disputed && !_isChallengePeriod(request));
         require(humanity.status != Status.None);
+
         if (humanity.status == Status.PendingRevokal) delete humanity.owner;
         else if (!request.requesterLost) {
             humanity.owner = request.requester;
@@ -904,11 +914,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             resultRuling = Party.Requester;
         else if (round.sideFunded == Party.Challenger) resultRuling = Party.Challenger;
 
-        emit Ruling(IArbitrator(msg.sender), _disputeID, uint256(resultRuling));
-
         // Store the rulings of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
-        emit ChallengeResolved(request.requester, disputeData.requestID, disputeData.challengeID);
 
         if (humanity.status == Status.PendingAcceptance) {
             // For a registration request there can be more than one dispute.
@@ -936,6 +943,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         humanity.status = Status.None;
         request.resolved = true;
+
+        emit Ruling(IArbitrator(msg.sender), _disputeID, uint256(resultRuling));
+        emit ChallengeResolved(request.requester, disputeData.requestID, disputeData.challengeID);
     }
 
     /** @dev Submit a reference to evidence. EVENT.
@@ -956,6 +966,41 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /* Internal */
+
+    /** @dev Make a request to apply for/renew the humanity.
+     *  @param _humanity The humanity struct the request is made for.
+     *  @param _humanity The submission struct making the request for humanity.
+     *  @param _evidence A link to evidence using its URI.
+     */
+    function _requestHumanity(
+        Humanity storage _humanity,
+        Submission storage _submission,
+        string calldata _evidence
+    ) internal returns (uint256 requestID) {
+        // The humanity and submission must have no status
+        require(_humanity.status == Status.None && !_submission.pendingVouching);
+
+        requestID = _humanity.requests.length;
+        _submission.lastRequestID = requestID;
+        _submission.pendingVouching = true;
+
+        Request storage request = _humanity.requests.push();
+        request.requester = payable(msg.sender);
+        uint256 arbitratorDataID = arbitratorDataList.length - 1;
+        request.arbitratorDataID = uint16(arbitratorDataID);
+
+        Round storage round = request.challenges[0].rounds[0];
+        uint256 totalCost = _arbitrationCost(arbitratorDataList[arbitratorDataID]).addCap(submissionBaseDeposit);
+        _contribute(round, Party.Requester, totalCost);
+
+        if (bytes(_evidence).length > 0)
+            emit Evidence(
+                arbitratorDataList[arbitratorDataID].arbitrator,
+                requestID + uint256(_submission.qid),
+                msg.sender,
+                _evidence
+            );
+    }
 
     /** @dev Make a fee contribution.
      *  @param _round The round to contribute to.
@@ -1021,12 +1066,27 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     // *       Getters        * //
     // ************************ //
 
+    /** @dev Return the owner of the unique id. Revert if no owner.
+     */
+    function boundTo(uint160 _qid) public view returns (address owner) {
+        owner = qids[_qid].owner;
+        require(owner != address(0));
+    }
+
+    /** @dev Return true if the humanity has an owner and has not expired.
+     */
+    function isHumanityActive(uint160 _qid) public view returns (bool) {
+        Humanity storage humanity = qids[_qid];
+        return humanity.owner != address(0x0) && block.timestamp - humanity.submissionTime <= submissionDuration;
+    }
+
     /** @dev Return true if the submission is registered and not expired.
      *  @param _submissionID The address of the submission.
      *  @return Whether the submission is registered or not.
      */
     function isRegistered(address _submissionID) public view returns (bool) {
         Humanity storage humanity = qids[submissions[_submissionID].qid];
+        if (humanity.owner == address(0x0)) return false;
         return humanity.owner == _submissionID && block.timestamp - humanity.submissionTime <= submissionDuration;
     }
 
@@ -1095,7 +1155,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Submission storage submission = submissions[_submissionID];
         qid = submission.qid;
         Humanity storage humanity = qids[qid];
-        registered = humanity.owner == _submissionID;
+        registered = humanity.owner == _submissionID && _submissionID != address(0x0);
         hasVouched = submission.hasVouched;
         pendingVouching = submission.pendingVouching;
         submissionTime = humanity.submissionTime;

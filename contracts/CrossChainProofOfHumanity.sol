@@ -16,7 +16,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     struct Transfer {
         uint64 submissionTime; // submissionTime at the moment of transfer
-        uint160 qid; // the unique id correspondinf to the submission to transfer
+        uint160 qid; // the unique id corresponding to the submission to transfer
         address bridgeGateway; // bridge gateway used for the transfer
         bytes32 transferHash; // unique hash of the transfer == keccak256(submissionID, chainID, nonce)
     }
