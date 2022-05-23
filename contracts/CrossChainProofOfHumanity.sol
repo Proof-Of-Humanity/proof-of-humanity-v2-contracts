@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1*, @fnanni-0, @hrishibhat]
+ *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -7,20 +7,14 @@
  */
 pragma solidity 0.8.11;
 
-// import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-
 import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 import {ICrossChainProofOfHumanity} from "./interfaces/ICrossChainProofOfHumanity.sol";
 
-// UUPSUpgradeable
 contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== STRUCTS ==========
 
     struct Transfer {
-        bool tried; // whether the transfer has been tried; if true, it can be retried
-        uint64 blockNumber; // the block number transfer was allowed
-        uint64 expiration; // when the transfer window expires
         uint64 submissionTime; // submissionTime at the moment of transfer
         uint160 qid; // the unique id correspondinf to the submission to transfer
         address bridgeGateway; // bridge gateway used for the transfer
@@ -31,6 +25,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bool isPrimaryChain; // whether current chain is primary chain of the submission
         bool registered; // whether submission is marked as registered
         uint64 submissionTime; // submissionTime at the moment of update
+        uint256 lastReceivedTransferTime; // time of the last received transfer
         Transfer outgoing; // last outgoing transfer to a foreign chain
     }
 
@@ -45,8 +40,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Instance of the ProofOfHumanity contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @dev Time window in which a transfer can be initiated after allowing it.
-    uint64 public transferWindowDuration = 1 hours;
+    /// @dev Cooldown a submission has to wait for transferring again after a past received transfer.
+    uint256 public transferCooldown;
 
     /// @dev nonce to be used as transfer hash
     bytes32 public nonce;
@@ -77,7 +72,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         _;
     }
 
-    modifier onlyBridgeGateway(address _bridgeGateway) {
+    modifier allowedGateway(address _bridgeGateway) {
         require(bridgeGateways[_bridgeGateway]);
         _;
     }
@@ -86,10 +81,12 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Constructor
      *  @param _proofOfHumanity ProofOfHumanity contract address
+     *  @param _transferCooldown Period a submission has to wait to transfer again after a past received transfer.
      */
-    function initialize(IProofOfHumanity _proofOfHumanity) public initializer {
+    function initialize(IProofOfHumanity _proofOfHumanity, uint256 _transferCooldown) public initializer {
         governor = msg.sender;
         proofOfHumanity = _proofOfHumanity;
+        transferCooldown = _transferCooldown;
     }
 
     // ========== GOVERNANCE ==========
@@ -99,6 +96,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function changeGovernor(address _governor) external onlyGovernor {
         governor = _governor;
+    }
+
+    /** @dev Change the cooldown a submission has to wait for transferring again after a past received transfer.
+     *  @param _transferCooldown The new duration the submission has to wait has to wait.
+     */
+    function setTransferCooldown(uint256 _transferCooldown) external onlyGovernor {
+        transferCooldown = _transferCooldown;
     }
 
     /** @notice Adds bridge gateway contract address to whitelist
@@ -119,14 +123,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _bridgeGateway address of the bridge gateway to use
      *  @param _submissionID ID of the submission to update
      */
-    function updateSubmission(address _bridgeGateway, address _submissionID)
-        external
-        onlyBridgeGateway(_bridgeGateway)
-    {
+    function updateSubmission(address _bridgeGateway, address _submissionID) external allowedGateway(_bridgeGateway) {
         (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         Submission storage submission = submissions[_submissionID];
-        require(submission.isPrimaryChain || _isRegistered);
+        require(submission.isPrimaryChain || _isRegistered, "Must update from primary chain");
         submission.isPrimaryChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
@@ -134,41 +135,30 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         );
     }
 
-    /** @notice Allow a transfer to be executed during the transfer window
-     *  Used for frontrunning protection
-     */
-    function allowTransfer() external {
-        Transfer storage transfer = submissions[msg.sender].outgoing;
-        transfer.blockNumber = uint64(block.number);
-        transfer.expiration = uint64(block.timestamp) + transferWindowDuration;
-    }
-
     /** @notice Execute transfering the submission to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
-     *  @param _submissionID submission corresponding to the transfer to initiate
      */
-    function executeTransfer(address _bridgeGateway, address _submissionID) external onlyBridgeGateway(_bridgeGateway) {
-        Submission storage submission = submissions[_submissionID];
-        Transfer storage transfer = submission.outgoing;
-        require(transfer.blockNumber > uint64(block.number) && block.timestamp < transfer.expiration);
-
-        proofOfHumanity.revokeHumanityManually(_submissionID);
-
+    function transferSubmission(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+        proofOfHumanity.revokeHumanityManually(msg.sender);
+
+        Submission storage submission = submissions[msg.sender];
+        require(block.timestamp > submission.lastReceivedTransferTime + transferCooldown, "Can't transfer yet");
 
         submission.registered = true;
         submission.submissionTime = submissionTime;
         submission.isPrimaryChain = false;
+
+        Transfer storage transfer = submission.outgoing;
 
         nonce = keccak256(abi.encodePacked(msg.sender, block.chainid, nonce));
         transfer.transferHash = nonce;
         transfer.submissionTime = submissionTime;
         transfer.qid = qid;
         transfer.bridgeGateway = _bridgeGateway;
-        transfer.tried = true;
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveTransfer, (qid, _submissionID, submissionTime, nonce))
+            abi.encodeCall(this.receiveTransfer, (qid, msg.sender, submissionTime, nonce))
         );
     }
 
@@ -178,10 +168,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function retryFailedTransfer(address _submissionID) external {
         (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
 
-        Transfer memory transfer = submissions[msg.sender].outgoing;
-        require(transfer.tried);
-        require(submissionTime == transfer.submissionTime);
-        require(bridgeGateways[transfer.bridgeGateway]);
+        Transfer memory transfer = submissions[_submissionID].outgoing;
+        require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
+        require(submissionTime == transfer.submissionTime, "Submission time mismatch");
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
             abi.encodeCall(
@@ -202,7 +191,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         address _submissionID,
         uint64 _submissionTime,
         bool _isRegistered
-    ) external override onlyBridgeGateway(msg.sender) {
+    ) external override allowedGateway(msg.sender) {
         Submission storage submission = submissions[_submissionID];
         submission.registered = _isRegistered;
         submission.submissionTime = _submissionTime;
@@ -221,7 +210,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         address _submissionID,
         uint64 _submissionTime,
         bytes32 _transferHash
-    ) external override onlyBridgeGateway(msg.sender) {
+    ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
         proofOfHumanity.acceptHumanityManually(_qid, _submissionID, _submissionTime);
         Submission storage submission = submissions[_submissionID];
