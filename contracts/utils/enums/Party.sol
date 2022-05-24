@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.8.14;
 
 enum Party {
     None, // Party per default when there is no challenger or requester. Also used for unconclusive ruling.

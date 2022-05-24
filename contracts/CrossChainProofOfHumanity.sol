@@ -5,7 +5,7 @@
  *  @deployments: []
  *  SPDX-License-Identifier: MIT
  */
-pragma solidity 0.8.11;
+pragma solidity 0.8.14;
 
 import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
@@ -23,9 +23,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     struct Submission {
         bool isPrimaryChain; // whether current chain is primary chain of the submission
-        bool registered; // whether submission is marked as registered
         uint64 submissionTime; // submissionTime at the moment of update
-        uint256 lastReceivedTransferTime; // time of the last received transfer
+        uint160 qid; // the unique id corresponding to the submission
+        uint256 lastTransferTime; // time of the last received transfer
         Transfer outgoing; // last outgoing transfer to a foreign chain
     }
 
@@ -98,6 +98,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         governor = _governor;
     }
 
+    /** @dev Change the Proof of Humanity instance.
+     *  @param _proofOfHumanity The address of the new PoH instance.
+     */
+    function changeProofOfHumanity(IProofOfHumanity _proofOfHumanity) external onlyGovernor {
+        proofOfHumanity = _proofOfHumanity;
+    }
+
     /** @dev Change the cooldown a submission has to wait for transferring again after a past received transfer.
      *  @param _transferCooldown The new duration the submission has to wait has to wait.
      */
@@ -124,14 +131,15 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _submissionID ID of the submission to update
      */
     function updateSubmission(address _bridgeGateway, address _submissionID) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
+        (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         Submission storage submission = submissions[_submissionID];
+
         require(submission.isPrimaryChain || _isRegistered, "Must update from primary chain");
         submission.isPrimaryChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveUpdate, (_submissionID, submissionTime, _isRegistered))
+            abi.encodeCall(this.receiveUpdate, (_submissionID, _isRegistered ? qid : 0, submissionTime))
         );
     }
 
@@ -140,13 +148,15 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function transferSubmission(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+
+        // This function requires submission to be registered, status None and not vouching atm
         proofOfHumanity.revokeHumanityManually(msg.sender);
 
         Submission storage submission = submissions[msg.sender];
-        require(block.timestamp > submission.lastReceivedTransferTime + transferCooldown, "Can't transfer yet");
+        require(block.timestamp > submission.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        submission.registered = true;
         submission.submissionTime = submissionTime;
+        submission.qid = qid;
         submission.isPrimaryChain = false;
 
         Transfer storage transfer = submission.outgoing;
@@ -158,7 +168,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         transfer.bridgeGateway = _bridgeGateway;
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveTransfer, (qid, msg.sender, submissionTime, nonce))
+            abi.encodeCall(this.receiveTransfer, (msg.sender, qid, submissionTime, nonce))
         );
     }
 
@@ -175,7 +185,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
             abi.encodeCall(
                 this.receiveTransfer,
-                (transfer.qid, _submissionID, transfer.submissionTime, transfer.transferHash)
+                (_submissionID, transfer.qid, transfer.submissionTime, transfer.transferHash)
             )
         );
     }
@@ -185,18 +195,18 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /** @notice Receives the submission from the foreign proxy
      *  @param _submissionID ID of the submission to update
      *  @param _submissionTime time when the submission was last accepted to the list.
-     *  @param _isRegistered registration status of the submission
+     *  @param _qid unique ID of the submission
      */
     function receiveUpdate(
         address _submissionID,
-        uint64 _submissionTime,
-        bool _isRegistered
+        uint160 _qid,
+        uint64 _submissionTime
     ) external override allowedGateway(msg.sender) {
         Submission storage submission = submissions[_submissionID];
-        submission.registered = _isRegistered;
+        submission.qid = _qid;
         submission.submissionTime = _submissionTime;
         submission.isPrimaryChain = false;
-        emit UpdateReceived(_submissionID, _submissionTime, _isRegistered);
+        emit UpdateReceived(_submissionID, _qid, _submissionTime);
     }
 
     /** @notice Receives the transfered submission from the foreign proxy
@@ -206,15 +216,15 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _transferHash hash of the transfer.
      */
     function receiveTransfer(
-        uint160 _qid,
         address _submissionID,
+        uint160 _qid,
         uint64 _submissionTime,
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
         proofOfHumanity.acceptHumanityManually(_qid, _submissionID, _submissionTime);
         Submission storage submission = submissions[_submissionID];
-        submission.registered = true;
+        submission.qid = _qid;
         submission.submissionTime = _submissionTime;
         submission.isPrimaryChain = true;
         receivedTransferHashes[_transferHash] = true;
@@ -228,7 +238,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         return
             proofOfHumanity.isRegistered(_submissionID) ||
             (!submission.isPrimaryChain &&
-                submission.registered &&
+                submission.qid != 0 &&
                 (block.timestamp - submission.submissionTime <= proofOfHumanity.submissionDuration()));
     }
 }

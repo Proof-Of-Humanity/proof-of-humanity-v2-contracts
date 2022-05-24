@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.8.14;
 
 enum Reason {
     None, // No reason specified. This option should be used to challenge removal requests.

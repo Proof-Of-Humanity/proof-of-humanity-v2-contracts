@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.11;
+pragma solidity 0.8.14;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
@@ -138,7 +138,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     mapping(uint160 => Humanity) private qids; // Maps the unique ID to the Humanity data. qids[qid].
     mapping(address => Submission) private submissions; // Maps the submission ID to its data. submissions[submissionID].
-    mapping(address => mapping(address => bool)) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID].
+    mapping(address => mapping(address => mapping(uint160 => bool))) public vouches; // Indicates whether or not the voucher has vouched for a certain submission. vouches[voucherID][submissionID][qid].
     mapping(address => mapping(uint256 => DisputeData)) public arbitratorDisputeIDToDisputeData; // Maps a dispute ID with its data. arbitratorDisputeIDToDisputeData[arbitrator][disputeID].
 
     /* Modifiers */
@@ -468,7 +468,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         // For UX, qid parameter can be 0, in which case it is considered the sender wants to get the default value based on the address
         uint160 qid = _qid == 0 ? uint160(msg.sender) : _qid;
 
-        // The sender must be not registered and the humanity not active
+        // The sender must not be registered and the humanity not active
         require(!isRegistered(msg.sender) && !isHumanityActive(qid));
 
         Submission storage submission = submissions[msg.sender];
@@ -555,16 +555,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Vouch for the submission. Note that the event spam is not an issue as it will be handled by the UI.
      *  @param _submissionID The address of the submission to vouch for.
      */
-    function addVouch(address _submissionID) external {
-        vouches[msg.sender][_submissionID] = true;
+    function addVouch(address _submissionID, uint160 _qid) external {
+        vouches[msg.sender][_submissionID][_qid] = true;
         emit VouchAdded(_submissionID, msg.sender);
     }
 
     /** @dev Remove the submission's vouch that has been added earlier. Note that the event spam is not an issue as it will be handled by the UI.
      *  @param _submissionID The address of the submission to remove vouch from.
      */
-    function removeVouch(address _submissionID) external {
-        vouches[msg.sender][_submissionID] = false;
+    function removeVouch(address _submissionID, uint160 _qid) external {
+        vouches[msg.sender][_submissionID][_qid] = false;
         emit VouchRemoved(_submissionID, msg.sender);
     }
 
@@ -610,7 +610,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             {
                 // Get typed structure hash.
                 bytes32 messageHash = keccak256(
-                    abi.encode(_IS_HUMAN_VOUCHER_TYPEHASH, _submissionID, _expirationTimestamps[i])
+                    abi.encode(_IS_HUMAN_VOUCHER_TYPEHASH, _submissionID, submission.qid, _expirationTimestamps[i])
                 );
                 bytes32 hash = keccak256(abi.encodePacked(PREFIX, _DOMAIN_SEPARATOR, messageHash));
 
@@ -642,7 +642,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         for (uint256 i = 0; i < _vouches.length && request.vouches.length < requiredNumberOfVouches; i++) {
             // Check that the vouch isn't currently used by another submission and the voucher has a right to vouch.
-            if (vouches[_vouches[i]][_submissionID] && _isVouchValid(_vouches[i], _submissionID, timeOffset)) {
+            if (
+                vouches[_vouches[i]][_submissionID][submission.qid] &&
+                _isVouchValid(_vouches[i], _submissionID, timeOffset)
+            ) {
                 request.vouches.push(_vouches[i]);
                 submissions[_vouches[i]].hasVouched = true;
             }
@@ -703,6 +706,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         request.disputed = true;
         request.lastChallengeID++;
         challenge.lastRoundID++;
+
         emit SubmissionChallenged(_submissionID, submission.lastRequestID, disputeData.challengeID);
 
         uint256 evidenceGroupID = submission.lastRequestID + uint256(submission.qid);
