@@ -131,7 +131,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _submissionID ID of the submission to update
      */
     function updateSubmission(address _bridgeGateway, address _submissionID) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
+        (, , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
         bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
         Submission storage submission = submissions[_submissionID];
 
@@ -147,7 +147,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _bridgeGateway address of the bridge gateway to use
      */
     function transferSubmission(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+        (, , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
 
         // This function requires submission to be registered, status None and not vouching atm
         proofOfHumanity.revokeHumanityManually(msg.sender);
@@ -176,7 +176,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _submissionID ID of the submission to retry transfer for
      */
     function retryFailedTransfer(address _submissionID) external {
-        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
+        (, , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
 
         Transfer memory transfer = submissions[_submissionID].outgoing;
         require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");

@@ -2,6 +2,7 @@
 pragma solidity 0.8.14;
 
 import {Status} from "../utils/enums/Status.sol";
+import {RequesterStatus} from "../utils/enums/RequesterStatus.sol";
 
 interface IProofOfHumanity {
     /* Manual adding/removing */
@@ -25,10 +26,9 @@ interface IProofOfHumanity {
         returns (
             bool registered,
             bool hasVouched,
-            bool pendingVouching,
             uint64 submissionTime,
             uint160 qid,
-            Status status,
+            RequesterStatus status,
             uint256 lastRequestID
         );
 }

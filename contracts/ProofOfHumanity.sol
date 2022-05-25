@@ -15,6 +15,7 @@ import "@kleros/erc-792/contracts/IArbitrator.sol";
 import {CappedMath} from "./utils/libraries/CappedMath.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 
+import {RequesterStatus} from "./utils/enums/RequesterStatus.sol";
 import {Status} from "./utils/enums/Status.sol";
 import {Party} from "./utils/enums/Party.sol";
 import {Reason} from "./utils/enums/Reason.sol";
@@ -44,12 +45,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /* Structs */
 
-    /** @dev Struct corresponding to an unique id.
-     *  A submitter make requests to become the owner of the Humanity.
-     *  When someone passes the vouching phase, and the Humanity has no status, it puts the Humanity in PendingAcceptance status.
-     *  Anyone can request the revokal of the Humanity, putting it in the PendingRevokal status.
-     *  Multiple submitters can be in vouching phase for the same humanity. Once one of them advances to PendingAcceptance, it locks the Humanity for the others to apply.
-     */
+    // Struct corresponding to an unique id.
+    // A submitter make requests to become the owner of the Humanity.
+    // When someone passes the vouching phase, and the Humanity has no status, it puts the Humanity in PendingAcceptance status.
+    // Anyone can request the revokal of the Humanity, putting it in the PendingRevokal status.
+    // Multiple submitters can be in vouching phase for the same humanity. Once one of them advances to PendingAcceptance, it locks the Humanity for the others to apply.
     struct Humanity {
         uint64 submissionTime; // The time when the humanity was last accepted.
         Status status; // The current status of the humanity.
@@ -58,10 +58,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     struct Submission {
-        bool pendingVouching; // True if the submission is pending vouching.
         bool hasVouched; // True if the human used its vouch for another submission. This is set back to false once the vouch is processed.
         uint160 qid; // The unique ID corresponding to the submission.
         uint256 lastRequestID; // The last request ID for the corresponding unique id.
+        RequesterStatus status;
     }
 
     struct Request {
@@ -320,11 +320,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         address _submissionID,
         uint64 _submissionTime
     ) external override onlyCrossChain {
+        boundTo(_qid); // Reverts if humanity is not bound to anyone
+
         Submission storage submission = submissions[_submissionID];
         Humanity storage humanity = qids[_qid];
 
-        require(!isHumanityActive(_qid));
-        require(humanity.status == Status.None && !submission.pendingVouching);
+        require(humanity.status == Status.None && submission.status == RequesterStatus.None);
 
         uint256 requestID = humanity.requests.length;
         if (requestID == 0) soulsCounter++;
@@ -342,10 +343,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Submission storage submission = submissions[_submissionID];
         Humanity storage humanity = qids[submission.qid];
 
-        require(isRegistered(_submissionID) && humanity.status == Status.None);
-
         // Submission must not have vouched at the moment
         require(!submission.hasVouched);
+
+        require(isRegistered(_submissionID) && humanity.status == Status.None);
 
         delete humanity.owner;
     }
@@ -468,13 +469,15 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         // For UX, qid parameter can be 0, in which case it is considered the sender wants to get the default value based on the address
         uint160 qid = _qid == 0 ? uint160(msg.sender) : _qid;
 
-        // The sender must not be registered and the humanity not active
-        require(!isRegistered(msg.sender) && !isHumanityActive(qid));
-
         Submission storage submission = submissions[msg.sender];
+        Humanity storage humanity = qids[qid];
+
+        // The sender must not be registered and the humanity not belong to anybody
+        require(!isRegistered(msg.sender) && humanity.owner == address(0x0));
+
         submission.qid = qid;
 
-        uint256 requestID = _requestHumanity(qids[qid], submission, _evidence);
+        uint256 requestID = _requestHumanity(humanity, submission, _evidence);
 
         // If humanity has not had any requests before on this contract, increase the counter
         if (requestID == 0) soulsCounter++;
@@ -491,8 +494,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Submission storage submission = submissions[msg.sender];
         Humanity storage humanity = qids[submission.qid];
 
-        // The sender must be the owner of the humanity and there must be renewal period
-        require(humanity.owner == msg.sender && _isRenewalPeriod(humanity.submissionTime));
+        // There must be renewal period
+        require(_isRenewalPeriod(humanity.submissionTime));
 
         uint256 requestID = _requestHumanity(humanity, submission, _evidence);
 
@@ -543,7 +546,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function fundRequest(address _submissionID) external payable {
         Submission storage submission = submissions[_submissionID];
-        require(submission.pendingVouching);
+        require(submission.status == RequesterStatus.PendingVouching);
         Request storage request = qids[submission.qid].requests[submission.lastRequestID];
         Round storage round = request.challenges[0].rounds[0];
 
@@ -572,9 +575,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function withdrawSubmission() external {
         Submission storage submission = submissions[msg.sender];
-        require(submission.pendingVouching);
+        require(submission.status == RequesterStatus.PendingVouching);
         Request storage request = qids[submission.qid].requests[submission.lastRequestID];
-        submission.pendingVouching = false;
+        submission.status = RequesterStatus.None;
         request.resolved = true;
 
         withdrawFeesAndRewards(payable(msg.sender), msg.sender, submission.lastRequestID, 0, 0); // Automatically withdraw for the requester.
@@ -598,7 +601,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     ) external {
         Submission storage submission = submissions[_submissionID];
         Humanity storage humanity = qids[submission.qid];
-        require(submission.pendingVouching && humanity.status == Status.None);
+        require(submission.status == RequesterStatus.PendingVouching && humanity.status == Status.None);
         Request storage request = humanity.requests[submission.lastRequestID];
         require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
@@ -652,7 +655,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         }
         require(request.vouches.length >= requiredNumberOfVouches);
         humanity.status = Status.PendingAcceptance;
-        submission.pendingVouching = false;
+        submission.status = RequesterStatus.PendingAcceptance;
         request.challengePeriodStart = uint64(block.timestamp);
     }
 
@@ -836,7 +839,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             voucher.hasVouched = false;
             if (applyPenalty) {
                 // Check the situation when vouching address is in the middle of reapplication process.
-                if (voucher.pendingVouching || voucherHumanity.status == Status.PendingAcceptance)
+                if (voucher.status != RequesterStatus.None)
                     voucherHumanity.requests[voucher.lastRequestID].requesterLost = true;
 
                 delete voucherHumanity.owner;
@@ -982,11 +985,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         string calldata _evidence
     ) internal returns (uint256 requestID) {
         // The humanity and submission must have no status
-        require(_humanity.status == Status.None && !_submission.pendingVouching);
+        require(_humanity.status == Status.None && _submission.status == RequesterStatus.None);
 
         requestID = _humanity.requests.length;
         _submission.lastRequestID = requestID;
-        _submission.pendingVouching = true;
+        _submission.status = RequesterStatus.PendingVouching;
 
         Request storage request = _humanity.requests.push();
         request.requester = payable(msg.sender);
@@ -1070,18 +1073,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     // *       Getters        * //
     // ************************ //
 
-    /** @dev Return the owner of the unique id. Revert if no owner.
+    /** @dev Return the owner of the unique id. Revert if not active.
      */
     function boundTo(uint160 _qid) public view returns (address owner) {
-        owner = qids[_qid].owner;
-        require(owner != address(0));
-    }
-
-    /** @dev Return true if the humanity has an owner and has not expired.
-     */
-    function isHumanityActive(uint160 _qid) public view returns (bool) {
         Humanity storage humanity = qids[_qid];
-        return humanity.owner != address(0x0) && block.timestamp - humanity.submissionTime <= submissionDuration;
+        owner = humanity.owner;
+        require(owner != address(0) && block.timestamp - humanity.submissionTime <= submissionDuration);
     }
 
     /** @dev Return true if the submission is registered and not expired.
@@ -1149,10 +1146,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         returns (
             bool registered,
             bool hasVouched,
-            bool pendingVouching,
             uint64 submissionTime,
             uint160 qid,
-            Status status,
+            RequesterStatus status,
             uint256 lastRequestID
         )
     {
@@ -1161,9 +1157,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = qids[qid];
         registered = humanity.owner == _submissionID && _submissionID != address(0x0);
         hasVouched = submission.hasVouched;
-        pendingVouching = submission.pendingVouching;
         submissionTime = humanity.submissionTime;
-        status = humanity.status;
+        status = submission.status;
         lastRequestID = submission.lastRequestID;
     }
 
