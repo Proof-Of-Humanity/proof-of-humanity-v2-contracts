@@ -26,7 +26,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         uint64 claimTime; // claimTime at the moment of update
         address owner; // the owner address
         uint256 lastTransferTime; // time of the last received transfer
-        Transfer outgoing; // last outgoing transfer to a foreign chain
     }
 
     // ========== STORAGE ==========
@@ -57,6 +56,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /// @dev Mapping of the humanIDs to corresponding soul IDs
     mapping(address => uint160) public humans;
+
+    /// @dev Mapping of the soul IDs to last outgoing transfer
+    mapping(uint160 => Transfer) public transfers;
 
     // ========== EVENTS ==========
 
@@ -166,7 +168,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         humans[msg.sender] = soulID;
 
-        Transfer storage transfer = soul.outgoing;
+        Transfer storage transfer = transfers[soulID];
         nonce = keccak256(abi.encodePacked(soulID, block.chainid, nonce));
         transfer.transferHash = nonce;
         transfer.claimTime = claimTime;
@@ -184,8 +186,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function retryFailedTransfer(uint160 _soulID) external {
         (uint64 claimTime, , , ) = proofOfHumanity.getSoulInfo(_soulID);
 
-        Soul storage soul = souls[_soulID];
-        Transfer memory transfer = soul.outgoing;
+        Soul memory soul = souls[_soulID];
+        Transfer memory transfer = transfers[_soulID];
         require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
         require(claimTime == transfer.claimTime, "Soul time mismatch");
 
