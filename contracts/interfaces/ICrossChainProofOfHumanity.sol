@@ -3,19 +3,20 @@ pragma solidity 0.8.14;
 
 interface ICrossChainProofOfHumanity {
     function receiveUpdate(
-        address _submissionID,
-        uint160 _qid,
-        uint64 _submissionTime
+        address _humanID,
+        uint160 _soulID,
+        uint64 _claimTime,
+        bool _isActive
     ) external;
 
-    event UpdateReceived(address _submissionID, uint160 _qid, uint64 _submissionTime);
+    event UpdateReceived(address _humanID, uint160 _soulID, uint64 _claimTime);
 
     function receiveTransfer(
-        address _submissionID,
-        uint160 _qid,
-        uint64 _submissionTime,
+        address _humanID,
+        uint160 _soulID,
+        uint64 _claimTime,
         bytes32 _transferHash
     ) external;
 
-    event TransferReceived(address _submissionID);
+    event TransferReceived(address _humanID);
 }

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.14;
 
-enum RequesterStatus {
+enum Phase {
     None,
-    PendingVouching,
-    PendingAcceptance
+    Vouching,
+    Claiming
 }

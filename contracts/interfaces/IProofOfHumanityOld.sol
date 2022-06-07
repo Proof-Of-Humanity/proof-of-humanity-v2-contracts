@@ -9,9 +9,8 @@ interface IProofOfHumanityOld {
     function removeSubmissionManually(address _submissionID) external;
 
     /* Views */
-    function isRegistered(address _submissionID) external view returns (bool);
 
-    function vouches(address voucherID, address submissionID) external view returns (bool);
+    function isRegistered(address _submissionID) external view returns (bool);
 
     function getSubmissionInfo(address _submissionID)
         external
