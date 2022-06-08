@@ -57,7 +57,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Mapping of the humanIDs to corresponding soul IDs
     mapping(address => uint160) public humans;
 
-    /// @dev Mapping of the soul IDs to last outgoing transfer
+    /// @dev Mapping of the soul IDs to last corresponding outgoing transfer
     mapping(uint160 => Transfer) public transfers;
 
     // ========== EVENTS ==========
