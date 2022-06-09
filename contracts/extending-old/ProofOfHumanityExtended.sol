@@ -246,9 +246,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         address _humanID,
         uint64 _claimTime
     ) external override onlyCrossChain {
-        // Reverts if soul is not bound to anyone
-        boundTo(_soulID);
-
         Human storage human = humans[_humanID];
         Soul storage soul = souls[_soulID];
 
