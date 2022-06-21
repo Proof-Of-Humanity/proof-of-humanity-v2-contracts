@@ -1,21 +1,22 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.11;
+pragma solidity 0.8.14;
 
 interface ICrossChainProofOfHumanity {
     function receiveUpdate(
-        address _submissionID,
-        uint64 _submissionTime,
-        bool _isRegistered
+        address _humanID,
+        uint160 _soulID,
+        uint64 _expirationTime,
+        bool _isActive
     ) external;
 
-    event UpdateReceived(address _submissionID, uint64 _submissionTime, bool _isRegistered);
+    event UpdateReceived(address _humanID, uint160 _soulID, uint64 _expirationTime);
 
     function receiveTransfer(
-        uint160 _qid,
-        address _submissionID,
-        uint64 _submissionTime,
+        address _humanID,
+        uint160 _soulID,
+        uint64 _expirationTime,
         bytes32 _transferHash
     ) external;
 
-    event TransferReceived(address _submissionID);
+    event TransferReceived(address _humanID);
 }

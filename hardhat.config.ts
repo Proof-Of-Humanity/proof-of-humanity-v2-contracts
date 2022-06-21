@@ -9,7 +9,7 @@ import "hardhat-contract-sizer";
 dotenv.config();
 
 const config: HardhatUserConfig = {
-  solidity: { version: "0.8.11", settings: { optimizer: { enabled: true, runs: 1800 } } },
+  solidity: { version: "0.8.14", settings: { optimizer: { enabled: true, runs: 1800 } } },
   networks: {
     hardhat: { allowUnlimitedContractSize: true, chainId: 1 },
     sokol: { chainId: 77, url: "https://sokol.poa.network/" },

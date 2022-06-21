@@ -1,37 +1,31 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1*, @fnanni-0, @hrishibhat]
+ *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
  *  SPDX-License-Identifier: MIT
  */
-pragma solidity 0.8.11;
-
-// import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+pragma solidity 0.8.14;
 
 import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 import {ICrossChainProofOfHumanity} from "./interfaces/ICrossChainProofOfHumanity.sol";
 
-// UUPSUpgradeable
 contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== STRUCTS ==========
 
     struct Transfer {
-        bool tried; // whether the transfer has been tried; if true, it can be retried
-        uint64 blockNumber; // the block number transfer was allowed
-        uint64 expiration; // when the transfer window expires
-        uint64 submissionTime; // submissionTime at the moment of transfer
-        uint160 qid; // the unique id correspondinf to the submission to transfer
+        uint64 expirationTime; // expirationTime at the moment of transfer
+        uint160 soulID; // the unique id corresponding to the soul to transfer
         address bridgeGateway; // bridge gateway used for the transfer
-        bytes32 transferHash; // unique hash of the transfer == keccak256(submissionID, chainID, nonce)
+        bytes32 transferHash; // unique hash of the transfer == keccak256(soulID, chainID, nonce)
     }
 
-    struct Submission {
-        bool isPrimaryChain; // whether current chain is primary chain of the submission
-        bool registered; // whether submission is marked as registered
-        uint64 submissionTime; // submissionTime at the moment of update
-        Transfer outgoing; // last outgoing transfer to a foreign chain
+    struct Soul {
+        bool isHomeChain; // whether current chain is home chain of the soul
+        uint64 expirationTime; // expirationTime at the moment of update
+        address owner; // the owner address
+        uint256 lastTransferTime; // time of the last received transfer
     }
 
     // ========== STORAGE ==========
@@ -45,8 +39,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Instance of the ProofOfHumanity contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @dev Time window in which a transfer can be initiated after allowing it.
-    uint64 public transferWindowDuration = 1 hours;
+    /// @dev Cooldown a soul has to wait for transferring again after a past received transfer.
+    uint256 public transferCooldown;
 
     /// @dev nonce to be used as transfer hash
     bytes32 public nonce;
@@ -57,8 +51,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Whitelist of trusted bridge gateway contracts
     mapping(address => bool) public bridgeGateways;
 
-    /// @dev Mapping of the registered submissions
-    mapping(address => Submission) public submissions;
+    /// @dev Mapping of the soul IDs to corresponding soul struct
+    mapping(uint160 => Soul) public souls;
+
+    /// @dev Mapping of the humanIDs to corresponding soul IDs
+    mapping(address => uint160) public humans;
+
+    /// @dev Mapping of the soul IDs to last corresponding outgoing transfer
+    mapping(uint160 => Transfer) public transfers;
 
     // ========== EVENTS ==========
 
@@ -77,7 +77,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         _;
     }
 
-    modifier onlyBridgeGateway(address _bridgeGateway) {
+    modifier allowedGateway(address _bridgeGateway) {
         require(bridgeGateways[_bridgeGateway]);
         _;
     }
@@ -86,10 +86,12 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Constructor
      *  @param _proofOfHumanity ProofOfHumanity contract address
+     *  @param _transferCooldown Period a soul has to wait to transfer again after a past received transfer.
      */
-    function initialize(IProofOfHumanity _proofOfHumanity) public initializer {
+    function initialize(IProofOfHumanity _proofOfHumanity, uint256 _transferCooldown) public initializer {
         governor = msg.sender;
         proofOfHumanity = _proofOfHumanity;
+        transferCooldown = _transferCooldown;
     }
 
     // ========== GOVERNANCE ==========
@@ -99,6 +101,20 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function changeGovernor(address _governor) external onlyGovernor {
         governor = _governor;
+    }
+
+    /** @dev Change the Proof of Humanity instance.
+     *  @param _proofOfHumanity The address of the new PoH instance.
+     */
+    function changeProofOfHumanity(IProofOfHumanity _proofOfHumanity) external onlyGovernor {
+        proofOfHumanity = _proofOfHumanity;
+    }
+
+    /** @dev Change the cooldown a soul has to wait for transferring again after a past received transfer.
+     *  @param _transferCooldown The new duration the soul has to wait has to wait.
+     */
+    function setTransferCooldown(uint256 _transferCooldown) external onlyGovernor {
+        transferCooldown = _transferCooldown;
     }
 
     /** @notice Adds bridge gateway contract address to whitelist
@@ -115,131 +131,147 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== REQUESTS ==========
 
-    /** @notice Sends an update of the submission registration status to the foreign chain
+    /** @notice Sends an update of the soul status to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
-     *  @param _submissionID ID of the submission to update
+     *  @param _soulId Id of the soul to update
      */
-    function updateSubmission(address _bridgeGateway, address _submissionID)
-        external
-        onlyBridgeGateway(_bridgeGateway)
-    {
-        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
-        bool _isRegistered = proofOfHumanity.isRegistered(_submissionID);
-        Submission storage submission = submissions[_submissionID];
-        require(submission.isPrimaryChain || _isRegistered);
-        submission.isPrimaryChain = true;
+    function updateSoul(address _bridgeGateway, uint160 _soulId) external allowedGateway(_bridgeGateway) {
+        (, uint64 expirationTime, address owner, , ) = proofOfHumanity.getSoulInfo(_soulId);
+        bool soulClaimed = proofOfHumanity.isSoulClaimed(_soulId);
+
+        Soul storage soul = souls[_soulId];
+        require(soul.isHomeChain || soulClaimed, "Must update from home chain");
+        soul.isHomeChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveUpdate, (_submissionID, submissionTime, _isRegistered))
+            abi.encodeCall(
+                this.receiveUpdate,
+                (soulClaimed ? owner : address(0x0), _soulId, expirationTime, soulClaimed)
+            )
         );
     }
 
-    /** @notice Allow a transfer to be executed during the transfer window
-     *  Used for frontrunning protection
-     */
-    function allowTransfer() external {
-        Transfer storage transfer = submissions[msg.sender].outgoing;
-        transfer.blockNumber = uint64(block.number);
-        transfer.expiration = uint64(block.timestamp) + transferWindowDuration;
-    }
-
-    /** @notice Execute transfering the submission to the foreign chain
+    /** @notice Execute transfering the soul to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
-     *  @param _submissionID submission corresponding to the transfer to initiate
      */
-    function executeTransfer(address _bridgeGateway, address _submissionID) external onlyBridgeGateway(_bridgeGateway) {
-        Submission storage submission = submissions[_submissionID];
-        Transfer storage transfer = submission.outgoing;
-        require(transfer.blockNumber > uint64(block.number) && block.timestamp < transfer.expiration);
+    function transferSoul(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
+        // This function requires soul to be active, status None and human not vouching at the moment
+        (uint64 expirationTime, uint160 soulID) = proofOfHumanity.revokeSoulManually(msg.sender);
 
-        proofOfHumanity.revokeHumanityManually(_submissionID);
+        Soul storage soul = souls[soulID];
+        require(block.timestamp > soul.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        (, , , uint64 submissionTime, uint160 qid, , ) = proofOfHumanity.getSubmissionInfo(msg.sender);
+        soul.expirationTime = expirationTime;
+        soul.owner = msg.sender;
+        soul.isHomeChain = false;
 
-        submission.registered = true;
-        submission.submissionTime = submissionTime;
-        submission.isPrimaryChain = false;
+        humans[msg.sender] = soulID;
 
-        nonce = keccak256(abi.encodePacked(msg.sender, block.chainid, nonce));
+        Transfer storage transfer = transfers[soulID];
+        nonce = keccak256(abi.encodePacked(soulID, block.chainid, nonce));
         transfer.transferHash = nonce;
-        transfer.submissionTime = submissionTime;
-        transfer.qid = qid;
+        transfer.expirationTime = expirationTime;
+        transfer.soulID = soulID;
         transfer.bridgeGateway = _bridgeGateway;
-        transfer.tried = true;
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveTransfer, (qid, _submissionID, submissionTime, nonce))
+            abi.encodeCall(this.receiveTransfer, (msg.sender, soulID, expirationTime, nonce))
         );
     }
 
     /** @notice Retry a failed transfer
-     *  @param _submissionID ID of the submission to retry transfer for
+     *  @param _soulId ID of the soul to retry transfer for
      */
-    function retryFailedTransfer(address _submissionID) external {
-        (, , , uint64 submissionTime, , , ) = proofOfHumanity.getSubmissionInfo(_submissionID);
+    function retryFailedTransfer(uint160 _soulId) external {
+        (, uint64 expirationTime, , , ) = proofOfHumanity.getSoulInfo(_soulId);
 
-        Transfer memory transfer = submissions[msg.sender].outgoing;
-        require(transfer.tried);
-        require(submissionTime == transfer.submissionTime);
-        require(bridgeGateways[transfer.bridgeGateway]);
+        Soul memory soul = souls[_soulId];
+        Transfer memory transfer = transfers[_soulId];
+        require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
+        require(expirationTime == transfer.expirationTime, "Soul time mismatch");
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
             abi.encodeCall(
                 this.receiveTransfer,
-                (transfer.qid, _submissionID, transfer.submissionTime, transfer.transferHash)
+                (soul.owner, transfer.soulID, transfer.expirationTime, transfer.transferHash)
             )
         );
     }
 
     // ========== RECEIVES ==========
 
-    /** @notice Receives the submission from the foreign proxy
-     *  @param _submissionID ID of the submission to update
-     *  @param _submissionTime time when the submission was last accepted to the list.
-     *  @param _isRegistered registration status of the submission
+    /** @notice Receives the soul from the foreign proxy
+     *  @param _humanID ID of the human corresponding to the soul
+     *  @param _soulId ID of the soul to update
+     *  @param _expirationTime time when the soul was last claimed
+     *  @param _soulId unique ID of the soul
      */
     function receiveUpdate(
-        address _submissionID,
-        uint64 _submissionTime,
-        bool _isRegistered
-    ) external override onlyBridgeGateway(msg.sender) {
-        Submission storage submission = submissions[_submissionID];
-        submission.registered = _isRegistered;
-        submission.submissionTime = _submissionTime;
-        submission.isPrimaryChain = false;
-        emit UpdateReceived(_submissionID, _submissionTime, _isRegistered);
+        address _humanID,
+        uint160 _soulId,
+        uint64 _expirationTime,
+        bool _isActive
+    ) external override allowedGateway(msg.sender) {
+        Soul storage soul = souls[_soulId];
+
+        // Clean human soulID for past owner
+        delete humans[soul.owner];
+
+        if (_isActive) {
+            humans[_humanID] = _soulId;
+            soul.owner = _humanID;
+        } else {
+            delete humans[_humanID];
+            delete soul.owner;
+        }
+
+        soul.expirationTime = _expirationTime;
+        soul.isHomeChain = false;
+
+        emit UpdateReceived(_humanID, _soulId, _expirationTime);
     }
 
-    /** @notice Receives the transfered submission from the foreign proxy
-     *  @param _qid unique ID of the submission
-     *  @param _submissionID ID of the transfered submission
-     *  @param _submissionTime time when the submission was last accepted to the list.
+    /** @notice Receives the transfered soul from the foreign proxy
+     *  @param _humanID ID of the human corresponding to the soul
+     *  @param _soulId ID of the soul
+     *  @param _expirationTime time when the soul was last claimed
      *  @param _transferHash hash of the transfer.
      */
     function receiveTransfer(
-        uint160 _qid,
-        address _submissionID,
-        uint64 _submissionTime,
+        address _humanID,
+        uint160 _soulId,
+        uint64 _expirationTime,
         bytes32 _transferHash
-    ) external override onlyBridgeGateway(msg.sender) {
+    ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
-        proofOfHumanity.acceptHumanityManually(_qid, _submissionID, _submissionTime);
-        Submission storage submission = submissions[_submissionID];
-        submission.registered = true;
-        submission.submissionTime = _submissionTime;
-        submission.isPrimaryChain = true;
+        // Requires no status or phase for the soul and human respectively
+        proofOfHumanity.grantSoulManually(_soulId, _humanID, _expirationTime);
+
+        Soul storage soul = souls[_soulId];
+
+        // Clean human soulID for past owner
+        delete humans[soul.owner];
+
+        humans[_humanID] = _soulId;
+
+        soul.owner = _humanID;
+        soul.expirationTime = _expirationTime;
+        soul.isHomeChain = true;
+        soul.lastTransferTime = block.timestamp;
+
         receivedTransferHashes[_transferHash] = true;
-        emit TransferReceived(_submissionID);
+
+        emit TransferReceived(_humanID);
     }
 
     // ========== VIEWS ==========
 
-    function isRegistered(address _submissionID) external view returns (bool) {
-        Submission memory submission = submissions[_submissionID];
+    function isRegistered(address _humanID) external view returns (bool) {
+        uint160 soulID = humans[_humanID];
+        Soul memory soul = souls[soulID];
+
         return
-            proofOfHumanity.isRegistered(_submissionID) ||
-            (!submission.isPrimaryChain &&
-                submission.registered &&
-                (block.timestamp - submission.submissionTime <= proofOfHumanity.submissionDuration()));
+            proofOfHumanity.isRegistered(_humanID) ||
+            (!soul.isHomeChain && soulID != 0 && soul.owner == _humanID && soul.expirationTime > block.timestamp);
     }
 }
