@@ -5,16 +5,16 @@ interface ICrossChainProofOfHumanity {
     function receiveUpdate(
         address _humanID,
         uint160 _soulID,
-        uint64 _claimTime,
+        uint64 _expirationTime,
         bool _isActive
     ) external;
 
-    event UpdateReceived(address _humanID, uint160 _soulID, uint64 _claimTime);
+    event UpdateReceived(address _humanID, uint160 _soulID, uint64 _expirationTime);
 
     function receiveTransfer(
         address _humanID,
         uint160 _soulID,
-        uint64 _claimTime,
+        uint64 _expirationTime,
         bytes32 _transferHash
     ) external;
 

@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.14;
 
-import {Status} from "../utils/enums/Status.sol";
-import {Phase} from "../utils/enums/Phase.sol";
+// import {Phase} from "../utils/enums/Phase.sol";
 
 interface IProofOfHumanity {
+    enum Phase {
+        None, // Soul has no ongoing activity.
+        Claiming, // Soul is in the process of someone claiming it.
+        Revoking // Soul is in the process of someone revoking it.
+    }
+
     /* Manual adding/removing */
 
     function grantSoulManually(
@@ -13,33 +18,22 @@ interface IProofOfHumanity {
         uint64 _submissionTime
     ) external;
 
-    function revokeSoulManually(address _submissionID) external returns (uint64 claimTime, uint160 soulID);
+    function revokeSoulManually(address _submissionID) external returns (uint64 expirationTime, uint160 soulID);
 
     /* Views */
 
-    function soulLifespan() external view returns (uint64);
-
-    function boundTo(uint160 _soulID) external view returns (address owner);
+    function isSoulClaimed(uint160 _soulId) external view returns (bool);
 
     function isRegistered(address _submissionID) external view returns (bool);
 
-    function getSoulInfo(uint160 _soulID)
+    function getSoulInfo(uint160 _soulId)
         external
         view
         returns (
-            uint64 claimTime,
+            bool vouching,
+            uint64 expirationTime,
             address owner,
             uint256 numberOfRequests,
-            Status status
-        );
-
-    function getHumanInfo(address _humanID)
-        external
-        view
-        returns (
-            bool isVouching,
-            uint160 targetSoul,
-            uint256 lastRequestID,
             Phase phase
         );
 }

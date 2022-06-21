@@ -13,7 +13,7 @@ import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
-import "../utils/libraries/CappedMath.sol";
+import "../libraries/CappedMath.sol";
 
 /**
  *  @title ProofOfHumanity
