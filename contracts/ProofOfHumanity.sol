@@ -15,8 +15,6 @@ import "@kleros/erc-792/contracts/IArbitrator.sol";
 import {CappedMath} from "./libraries/CappedMath.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 
-// import {Phase} from "./utils/enums/Phase.sol";
-
 /** @title ProofOfHumanity
  *  This contract is a curated registry for people. The users are identified by their address and can be added or removed through the request-challenge protocol.
  *  In order to challenge a registration request the challenger must provide one of the four reasons.
@@ -297,13 +295,14 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(!_soulClaimed(soul));
         require(soul.phase == Phase.None);
 
-        if (soul.nbRequests == 0) soulsCounter++;
-        uint256 requestId = ++soul.nbRequests;
         soul.owner = _owner;
         soul.expirationTime = _expirationTime;
-        soul.requests[requestId].status = Status.Resolved;
 
         humans[_owner] = _soulId;
+
+        if (soul.nbRequests == 0) soulsCounter++;
+        uint256 requestId = ++soul.nbRequests;
+        soul.requests[requestId].status = Status.Resolved;
     }
 
     /** @notice Directly revoke a soul via cross-chain instance/governor.
@@ -475,10 +474,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(!isRegistered(msg.sender));
         require(!_soulClaimed(soul));
 
-        uint256 requestId = _requestSoul(_soulId, _evidence);
-
         // If soul has not had any requests before on this contract, increase the counter
-        if (requestId == 0) soulsCounter++;
+        if (soul.nbRequests == 0) soulsCounter++;
+
+        uint256 requestId = _requestSoul(_soulId, _evidence);
 
         emit ClaimSoul(msg.sender, soulId, requestId);
     }
@@ -502,7 +501,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Soul storage soul = souls[soulId];
 
         require(soul.owner == msg.sender);
-        require(soul.expirationTime.subCap64(renewalPeriodDuration) >= block.timestamp);
+        require(soul.expirationTime.subCap64(renewalPeriodDuration) <= block.timestamp);
 
         uint256 requestId = _requestSoul(soulId, _evidence);
 
@@ -630,7 +629,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *      uint256 voucherExpirationTimestamp;
      *  }
      *
-     *  @param _claimer The address of the human which status to change.
+     *  @param _claimer The address of the human whose request status to advance.
      *  @param _vouches Array of users whose vouches to count (optional).
      *  @param _signatures Array of EIP-712 signatures of struct IsHumanVoucher (optional).
      *  @param _expirationTimestamps Array of expiration timestamps for each signature (optional).
@@ -869,7 +868,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         soul.phase = Phase.None;
         delete soul.claimers[request.requester];
 
-        if (request.vouches.length != 0) processVouches(_claimer, _AUTO_PROCESSED_VOUCH);
+        if (request.vouches.length != 0) processVouches(soulId, requestId, _AUTO_PROCESSED_VOUCH);
 
         withdrawFeesAndRewards(request.requester, soulId, requestId, 0, 0); // Automatically withdraw for the requester.
     }
@@ -880,13 +879,17 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Requirements:
      *  - Request must be resolved.
      *
-     *  @param _claimer Human for which vouches to iterate.
+     *  @param _soulId Id of the soul for which the request was made.
+     *  @param _requestId Id of request for which vouches to iterate.
      *  @param _iterations Number of iterations to go through.
      */
-    function processVouches(address _claimer, uint256 _iterations) public {
-        Soul storage soul = souls[humans[_claimer]];
-        Request storage request = soul.requests[soul.claimers[_claimer]];
-        require(request.status == Status.Resolved);
+    function processVouches(
+        uint160 _soulId,
+        uint256 _requestId,
+        uint256 _iterations
+    ) public {
+        Request storage request = souls[_soulId].requests[_requestId];
+        require(request.status == Status.Resolved, "Not resolved");
 
         uint256 lastProcessedVouch = request.lastProcessedVouch;
         uint256 endIndex = _iterations.addCap(lastProcessedVouch);
@@ -1198,7 +1201,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return Whether soul is claimed.
      */
     function _soulClaimed(Soul storage _soul) internal view returns (bool) {
-        return _soul.owner != address(0) && _soul.expirationTime < block.timestamp;
+        return _soul.owner != address(0) && _soul.expirationTime >= block.timestamp;
     }
 
     /** @notice Check whether id corresponds to a claimed soul.
@@ -1241,22 +1244,39 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         return (soul.vouching, soul.expirationTime, soul.owner, soul.nbRequests, soul.phase);
     }
 
-    /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
-     *  @param _soulId The soul id.
-     *  @param _requestId The request to query.
-     *  @param _challengeId the challenge to query.
-     *  @param _round The round to query.
-     *  @param _contributor The address of the contributor.
-     *  @return The contributions.
+    function getClaimerRequestId(address _claimer) external view returns (uint256) {
+        return souls[humans[_claimer]].claimers[_claimer];
+    }
+
+    /** @notice Get information of a request of a soul.
+     *  @param _soulId The address of the soul.
+     *  @param _requestId The request
      */
-    function getContributions(
-        uint160 _soulId,
-        uint256 _requestId,
-        uint256 _challengeId,
-        uint256 _round,
-        address _contributor
-    ) external view returns (uint256[3] memory) {
-        return souls[_soulId].requests[_requestId].challenges[_challengeId].rounds[_round].contributions[_contributor];
+    function getRequestInfo(uint160 _soulId, uint256 _requestId)
+        external
+        view
+        returns (
+            bool requesterLost,
+            uint8 usedReasons,
+            uint16 arbitratorDataId,
+            uint16 lastChallengeId,
+            address payable requester,
+            address payable ultimateChallenger,
+            Status status,
+            Reason currentReason
+        )
+    {
+        Request storage request = souls[_soulId].requests[_requestId];
+        return (
+            request.requesterLost,
+            request.usedReasons,
+            request.arbitratorDataId,
+            request.lastChallengeId,
+            request.requester,
+            request.ultimateChallenger,
+            request.status,
+            request.currentReason
+        );
     }
 
     /** @notice Get the information of a particular challenge of the request.
@@ -1286,35 +1306,22 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         return (challenge.lastRoundId, challenge.challenger, challenge.disputeId, challenge.ruling);
     }
 
-    /** @notice Get information of a request of a soul.
-     *  @param _soulId The address of the soul.
-     *  @param _requestId The request
+    /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
+     *  @param _soulId The soul id.
+     *  @param _requestId The request to query.
+     *  @param _challengeId the challenge to query.
+     *  @param _round The round to query.
+     *  @param _contributor The address of the contributor.
+     *  @return The contributions.
      */
-    function getRequestInfo(uint160 _soulId, uint256 _requestId)
-        external
-        view
-        returns (
-            bool disputed,
-            bool resolved,
-            bool requesterLost,
-            Reason currentReason,
-            uint16 lastChallengeId,
-            uint16 arbitratorDataId,
-            address payable requester,
-            address payable ultimateChallenger,
-            uint8 usedReasons
-        )
-    {
-        Request storage request = souls[_soulId].requests[_requestId];
-        disputed = request.status == Status.Disputed;
-        resolved = request.status == Status.Resolved;
-        requesterLost = request.requesterLost;
-        currentReason = request.currentReason;
-        lastChallengeId = request.lastChallengeId;
-        arbitratorDataId = request.arbitratorDataId;
-        requester = request.requester;
-        ultimateChallenger = request.ultimateChallenger;
-        usedReasons = request.usedReasons;
+    function getContributions(
+        uint160 _soulId,
+        uint256 _requestId,
+        uint256 _challengeId,
+        uint256 _round,
+        address _contributor
+    ) external view returns (uint256[3] memory) {
+        return souls[_soulId].requests[_requestId].challenges[_challengeId].rounds[_round].contributions[_contributor];
     }
 
     /** @notice Get the number of vouches of a particular request.
