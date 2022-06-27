@@ -291,8 +291,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     ) external override onlyCrossChain {
         Soul storage soul = souls[_soulId];
 
+        if (_soulClaimed(soul)) return;
+
         require(_noOngoingClaim(_owner));
-        require(!_soulClaimed(soul));
 
         soul.owner = _owner;
         soul.expirationTime = _expirationTime;
