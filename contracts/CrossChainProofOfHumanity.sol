@@ -136,7 +136,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _soulId Id of the soul to update
      */
     function updateSoul(address _bridgeGateway, uint160 _soulId) external allowedGateway(_bridgeGateway) {
-        (, uint64 expirationTime, address owner, , ) = proofOfHumanity.getSoulInfo(_soulId);
+        (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getSoulInfo(_soulId);
         bool soulClaimed = proofOfHumanity.isSoulClaimed(_soulId);
 
         Soul storage soul = souls[_soulId];
@@ -183,7 +183,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _soulId ID of the soul to retry transfer for
      */
     function retryFailedTransfer(uint160 _soulId) external {
-        (, uint64 expirationTime, , , ) = proofOfHumanity.getSoulInfo(_soulId);
+        (, , , uint64 expirationTime, , ) = proofOfHumanity.getSoulInfo(_soulId);
 
         Soul memory soul = souls[_soulId];
         Transfer memory transfer = transfers[_soulId];

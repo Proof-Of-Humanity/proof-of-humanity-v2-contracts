@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.14;
 
-// import {Phase} from "../utils/enums/Phase.sol";
-
 interface IProofOfHumanity {
-    enum Phase {
-        None, // Soul has no ongoing activity.
-        Claiming, // Soul is in the process of someone claiming it.
-        Revoking // Soul is in the process of someone revoking it.
-    }
-
     /* Manual adding/removing */
 
     function grantSoulManually(
@@ -31,9 +23,10 @@ interface IProofOfHumanity {
         view
         returns (
             bool vouching,
+            bool pendingRevokal,
+            uint64 nbPendingRequests,
             uint64 expirationTime,
             address owner,
-            uint256 numberOfRequests,
-            Phase phase
+            uint256 nbRequests
         );
 }

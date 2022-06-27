@@ -78,21 +78,22 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /// ====== STRUCTS ====== ///
 
     /** @dev A human makes requests to become the owner of the soul.
-     *  @dev Anyone can request the revokal of the soul, putting it in the Revoking status.
-     *  @dev Multiple claimers can be in the claiming process at the same time.
+     *  @dev Multiple claimers can be in the claiming process at the same time. Only one request can be pending at a time.
      *  @dev Owner must be in this struct in order to know the real owner during renewal process.
      */
     struct Soul {
         bool vouching; // True if the human used its vouch for another human. This is set back to false once the vouch is processed.
+        bool pendingRevokal; // True if the human is in the process of revokal.
+        uint64 nbPendingRequests; // Number of pending requests in challenging phase.
         uint64 expirationTime; // Time when the soul expires.
         address owner; // Address corresponding to the soul.
-        Phase phase; // Current phase of the soul.
         uint256 nbRequests; // Number of requests made for the soul.
         mapping(address => uint256) claimers; // Mapping of the claimer address to the id of the current claim request.
         mapping(uint256 => Request) requests; // Mapping of the ids to corresponding requests.
     }
 
     struct Request {
+        bool typeRevokal; // True if the request is a revokal request. False if it is a renewal request.
         bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
         uint8 usedReasons; // Bitmap of the reasons used by challengers of this request.
         uint16 arbitratorDataId; // Index of the relevant arbitratorData struct. All the arbitrator info is stored in a separate struct to reduce gas cost.
@@ -160,7 +161,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /// @notice The time after which a request becomes executable if not challenged.
     uint64 public challengePeriodDuration;
 
-    /// @notice The number of registered users that have to vouch for a new registration request in order for it to enter Claiming phase.
+    /// @notice The number of registered users that have to vouch for a new registration request in order for it to advance beyond Vouching state.
     uint64 public requiredNumberOfVouches;
 
     /// @notice Multiplier for calculating the fee stake that must be paid in the case where arbitrator refused to arbitrate.
@@ -237,7 +238,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _renewalPeriodDuration Value that defines the duration of soul's renewal period.
      *  @param _challengePeriodDuration The time in seconds during which the request can be challenged.
      *  @param _multipliers The array that contains fee stake multipliers to avoid 'stack too deep' error.
-     *  @param _requiredNumberOfVouches The number of vouches the human has to have to pass from Vouching to Claiming phase.
+     *  @param _requiredNumberOfVouches The number of vouches the human has to have to pass from Vouching to Resolving phase.
      */
     function initialize(
         IArbitrator _arbitrator,
@@ -282,7 +283,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Requirements:
      *  - Human must not be in the process of claiming a soul.
      *  - Soul must not be claimed.
-     *  - Soul status must be none.
      *
      *  @param _soulId Unique id to be added.
      *  @param _owner Address owner corresponding to the soul.
@@ -298,7 +298,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(_noOngoingClaim(_owner));
         require(!_soulClaimed(soul));
         require(!_getOldProofOfHumanity().isRegistered(_owner));
-        require(soul.phase == Phase.None);
 
         soul.owner = _owner;
         soul.expirationTime = _expirationTime;
@@ -315,7 +314,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Requirements:
      *  - Sould must be claimed by someone.
      *  - Owner of the soul must be _humanId.
-     *  - Soul status must be none.
+     *  - Soul must have no pending requests.
      *  - Soul must not be vouching at the moment.
      *
      *  @param _humanId Human corresponding to the soul to be revoked.
@@ -328,13 +327,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         onlyCrossChain
         returns (uint64 expirationTime, uint160 soulId)
     {
-        if (_isRegisteredLocally(_humanId)) {
-            soulId = humans[_humanId];
-            Soul storage soul = souls[soulId];
+        soulId = humans[_humanId];
+        Soul storage soul = souls[soulId];
+        require(soul.nbPendingRequests == 0);
 
+        if (_isRegisteredLocally(_humanId)) {
             require(_soulClaimed(soul));
             require(soul.owner == _humanId);
-            require(soul.phase == Phase.None);
             require(!soul.vouching);
 
             expirationTime = soul.expirationTime;
@@ -389,7 +388,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         challengePeriodDuration = _challengePeriodDuration;
     }
 
-    /** @notice Change the number of vouches required for the request to pass to the claiming phase.
+    /** @notice Change the number of vouches required for the request to pass beyond Vouching state.
      *  @param _requiredNumberOfVouches The new required number of vouches.
      */
     function changeRequiredNumberOfVouches(uint64 _requiredNumberOfVouches) external onlyGovernor {
@@ -540,13 +539,14 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /** @notice Make a request to revoke a soul.
      *  @notice Accepts enough ETH to cover the deposit, reimburses the rest.
+     *  @notice Status of the soul can be anything to avoid blocking revokals.
      *
      *  @dev Emits {RevokeSoul} event.
      *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
      *  - Soul must be claimed by someone and not expired.
-     *  - Status of the soul must be None.
+     *  - Soul must not be pending revokal.
      *  - Deposit must be fully paid.
      *
      *  @param _soulId The id of the soul to revoke.
@@ -556,12 +556,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Soul storage soul = souls[_soulId];
 
         require(_soulClaimed(soul));
-        require(soul.phase == Phase.None);
+        require(!soul.pendingRevokal);
 
-        soul.phase = Phase.Revoking;
         uint256 requestId = ++soul.nbRequests;
+        soul.pendingRevokal = true;
+        soul.nbPendingRequests++;
 
         Request storage request = soul.requests[requestId];
+        request.status = Status.Resolving;
+        request.typeRevokal = true;
         request.requester = payable(msg.sender);
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
@@ -692,7 +695,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                     emit VouchAdded(_claimer, soulId, voucherAddress);
                 }
             } else {
-                require(i - _signatures.length < _vouches.length);
+                // Overflows if the end of _vouches has been reached and not enough valid vouches were gathered.
                 address voucherAddress = _vouches[i - _signatures.length];
                 uint160 voucherSoulId = humans[voucherAddress];
                 if (vouches[voucherAddress][_claimer][soulId] && _vouchValid(voucherAddress, _claimer)) {
@@ -704,7 +707,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             i++;
         }
 
-        soul.phase = Phase.Claiming;
+        soul.nbPendingRequests++;
         request.status = Status.Resolving;
         request.challengePeriodEnd = uint64(block.timestamp) + challengePeriodDuration;
     }
@@ -736,8 +739,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint160 soulId = humans[_claimer];
         Soul storage soul = souls[soulId];
         uint256 requestId = soul.claimers[_claimer];
-        require(soul.phase != Phase.None);
-        require((soul.phase == Phase.Claiming) == (_reason != Reason.None));
+        require(soul.pendingRevokal == (_reason == Reason.None));
 
         Request storage request = souls[soulId].requests[requestId];
         require(request.status == Status.Resolving);
@@ -787,9 +789,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         emit Dispute(
             arbitratorData.arbitrator,
             challenge.disputeId,
-            soul.phase == Phase.Claiming
-                ? 2 * arbitratorData.metaEvidenceUpdates
-                : 2 * arbitratorData.metaEvidenceUpdates + 1,
+            2 * arbitratorData.metaEvidenceUpdates + (soul.pendingRevokal ? 1 : 0),
             evidenceGroupId
         );
 
@@ -804,7 +804,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @dev Requirements:
      *  - Side funded must be either requester or challenger.
-     *  - Soul must have no phase.
      *  - Request must be disputed.
      *  - Challenge id must be valid.
      *  - Must be appeal period.
@@ -812,18 +811,18 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Must fund an non-funded side.
      *
      *  @param _soulId Id corresponding to soul of which request to fund.
+     *  @param _requestId Id of the request.
      *  @param _challengeId Index of a dispute, created for the request.
      *  @param _side Recipient of the contribution.
      */
     function fundAppeal(
         uint160 _soulId,
+        uint256 _requestId,
         uint256 _challengeId,
         Party _side
     ) external payable {
         require(_side != Party.None);
-        Soul storage soul = souls[_soulId];
-        require(soul.phase != Phase.None);
-        Request storage request = soul.requests[soul.nbRequests];
+        Request storage request = souls[_soulId].requests[_requestId];
         require(request.status == Status.Disputed);
         require(_challengeId < request.lastChallengeId);
 
@@ -874,7 +873,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Requirements:
      *  - Request must be in resolving state.
      *  - Challenge period must have ended.
-     *  - Soul must be in claiming / revoking phase.
      *
      *  @param _claimer Address of the human whose request to execute.
      */
@@ -886,16 +884,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.status == Status.Resolving);
         require(request.challengePeriodEnd < uint64(block.timestamp));
 
-        if (soul.phase == Phase.Revoking) {
+        if (request.typeRevokal) {
             delete soul.owner;
             delete humans[soul.owner];
-        } else if (soul.phase == Phase.Claiming && !request.requesterLost) {
+            soul.pendingRevokal = false;
+        } else if (!request.requesterLost) {
             soul.owner = request.requester;
             soul.expirationTime = uint64(block.timestamp) + soulLifespan;
         }
 
+        soul.nbPendingRequests--;
         request.status = Status.Resolved;
-        soul.phase = Phase.None;
         delete soul.claimers[request.requester];
 
         if (request.vouches.length != 0) processVouches(soulId, requestId, _AUTO_PROCESSED_VOUCH);
@@ -930,6 +929,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Reason currentReason = request.currentReason;
         bool applyPenalty = request.ultimateChallenger != address(0x0) &&
             (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
+
         for (uint256 i = lastProcessedVouch; i < endIndex; i++) {
             Soul storage voucherSoul = souls[request.vouches[i]];
             voucherSoul.vouching = false;
@@ -1043,7 +1043,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         // Store the rulings of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
 
-        if (soul.phase == Phase.Claiming) {
+        if (request.typeRevokal) {
+            soul.pendingRevokal = false;
+            if (resultRuling == Party.Requester) {
+                delete soul.owner;
+                delete humans[soul.owner];
+            }
+        } else {
             // For a registration request there can be more than one dispute.
             if (resultRuling == Party.Requester) {
                 // Check whether or not the requester won all of his previous disputes for current reason.
@@ -1065,13 +1071,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 if (resultRuling == Party.Challenger) request.ultimateChallenger = challenge.challenger;
                 request.requesterLost = true;
             }
-        } else if (soul.phase == Phase.Revoking && resultRuling == Party.Requester) {
-            delete soul.owner;
-            delete humans[soul.owner];
         }
 
+        soul.nbPendingRequests--;
         request.status = Status.Resolved;
-        soul.phase = Phase.None;
         delete soul.claimers[request.requester];
 
         emit Ruling(IArbitrator(msg.sender), _disputeId, uint256(resultRuling));
@@ -1094,11 +1097,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 _requestId,
         string calldata _evidence
     ) external {
-        Soul storage soul = souls[_soulId];
-        require(_requestId != 0 && _requestId <= soul.nbRequests);
-
         emit Evidence(
-            arbitratorDataList[soul.requests[_requestId].arbitratorDataId].arbitrator,
+            arbitratorDataList[souls[_soulId].requests[_requestId].arbitratorDataId].arbitrator,
             _requestId + uint256(_soulId),
             msg.sender,
             _evidence
@@ -1287,10 +1287,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         override
         returns (
             bool vouching,
+            bool pendingRevokal,
+            uint64 nbPendingRequests,
             uint64 expirationTime,
             address owner,
-            uint256 numberOfRequests,
-            Phase phase
+            uint256 nbRequests
         )
     {
         Soul storage soul = souls[_soulId];
@@ -1304,8 +1305,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             owner = soul.owner;
             expirationTime = soul.expirationTime;
         }
-        phase = soul.phase;
-        numberOfRequests = soul.nbRequests;
+        nbPendingRequests = soul.nbPendingRequests;
+        nbRequests = soul.nbRequests;
+        pendingRevokal = soul.pendingRevokal;
     }
 
     function getClaimerRequestId(address _claimer) external view returns (uint256) {
@@ -1370,32 +1372,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         return (challenge.lastRoundId, challenge.challenger, challenge.disputeId, challenge.ruling);
     }
 
-    /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
-     *  @param _soulId The soul id.
-     *  @param _requestId The request to query.
-     *  @param _challengeId the challenge to query.
-     *  @param _round The round to query.
-     *  @param _contributor The address of the contributor.
-     *  @return The contributions.
-     */
-    function getContributions(
-        uint160 _soulId,
-        uint256 _requestId,
-        uint256 _challengeId,
-        uint256 _round,
-        address _contributor
-    ) external view returns (uint256[3] memory) {
-        return souls[_soulId].requests[_requestId].challenges[_challengeId].rounds[_round].contributions[_contributor];
-    }
-
-    /** @notice Get the number of vouches of a particular request.
-     *  @param _soulId The Id of the queried human.
-     *  @param _requestId The request to query.
-     */
-    function getNumberOfVouches(uint160 _soulId, uint256 _requestId) external view returns (uint256) {
-        return souls[_soulId].requests[_requestId].vouches.length;
-    }
-
     /** @notice Get the information of a round of a request.
      *  @param _soulId The queried soul Id.
      *  @param _requestId The request to query.
@@ -1421,5 +1397,31 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Round storage round = challenge.rounds[_round];
         appealed = _round < (challenge.lastRoundId);
         return (appealed, round.paidFees, round.sideFunded, round.feeRewards);
+    }
+
+    /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
+     *  @param _soulId The soul id.
+     *  @param _requestId The request to query.
+     *  @param _challengeId the challenge to query.
+     *  @param _round The round to query.
+     *  @param _contributor The address of the contributor.
+     *  @return The contributions.
+     */
+    function getContributions(
+        uint160 _soulId,
+        uint256 _requestId,
+        uint256 _challengeId,
+        uint256 _round,
+        address _contributor
+    ) external view returns (uint256[3] memory) {
+        return souls[_soulId].requests[_requestId].challenges[_challengeId].rounds[_round].contributions[_contributor];
+    }
+
+    /** @notice Get the number of vouches of a particular request.
+     *  @param _soulId The Id of the queried human.
+     *  @param _requestId The request to query.
+     */
+    function getNumberOfVouches(uint160 _soulId, uint256 _requestId) external view returns (uint256) {
+        return souls[_soulId].requests[_requestId].vouches.length;
     }
 }
