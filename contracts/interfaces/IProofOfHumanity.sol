@@ -8,7 +8,7 @@ interface IProofOfHumanity {
         uint160 _qid,
         address _submissionID,
         uint64 _submissionTime
-    ) external;
+    ) external returns (bool success);
 
     function revokeSoulManually(address _submissionID) external returns (uint64 expirationTime, uint160 soulID);
 

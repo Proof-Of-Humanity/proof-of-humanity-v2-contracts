@@ -144,10 +144,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         soul.isHomeChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(
-                this.receiveUpdate,
-                (soulClaimed ? owner : address(0x0), _soulId, expirationTime, soulClaimed)
-            )
+            abi.encodeCall(this.receiveUpdate, (owner, _soulId, expirationTime, soulClaimed))
         );
     }
 
@@ -220,10 +217,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         if (_isActive) {
             humans[_humanID] = _soulId;
             soul.owner = _humanID;
-        } else {
-            delete humans[_humanID];
-            delete soul.owner;
-        }
+        } else delete soul.owner;
 
         soul.expirationTime = _expirationTime;
         soul.isHomeChain = false;
@@ -245,19 +239,21 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
         // Requires no status or phase for the soul and human respectively
-        proofOfHumanity.grantSoulManually(_soulId, _humanID, _expirationTime);
+        bool success = proofOfHumanity.grantSoulManually(_soulId, _humanID, _expirationTime);
 
         Soul storage soul = souls[_soulId];
 
         // Clean human soulID for past owner
         delete humans[soul.owner];
 
-        humans[_humanID] = _soulId;
+        if (success) {
+            humans[_humanID] = _soulId;
 
-        soul.owner = _humanID;
-        soul.expirationTime = _expirationTime;
-        soul.isHomeChain = true;
-        soul.lastTransferTime = block.timestamp;
+            soul.owner = _humanID;
+            soul.expirationTime = _expirationTime;
+            soul.isHomeChain = true;
+            soul.lastTransferTime = block.timestamp;
+        }
 
         receivedTransferHashes[_transferHash] = true;
 

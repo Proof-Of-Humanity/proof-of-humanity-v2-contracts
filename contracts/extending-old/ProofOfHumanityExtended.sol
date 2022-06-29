@@ -21,7 +21,7 @@ import {IProofOfHumanityOld, OldStatus} from "../interfaces/ProofOfHumanityOld.s
  *  In order to challenge a registration request the challenger must provide one of the four reasons.
  *  New registration requests firstly should gain sufficient amount of vouches from other registered users and only after that they can be accepted or challenged.
  *  The users who vouched for a human that lost the challenge with the reason Duplicate or DoesNotExist would be penalized with optional fine or ban period.
- *  NOTE: This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
+ *  @notice This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
 contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
@@ -103,7 +103,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         address payable requester; // Address that made the request.
         address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged human must pay the fines to this address.
         Status status; // Current status of the request.
-        Reason currentReason; // Current reason a registration request was challenged with. Is left empty for removal requests.
+        Reason currentReason; // Current reason a claim request was challenged with. Is left empty for removal requests.
         uint160[] vouches; // Stores the unique Ids of humans that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeId -> Challenge.
     }
@@ -161,7 +161,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /// @notice The time after which a request becomes executable if not challenged.
     uint64 public challengePeriodDuration;
 
-    /// @notice The number of registered users that have to vouch for a new registration request in order for it to advance beyond Vouching state.
+    /// @notice The number of registered users that have to vouch for a new claim request in order for it to advance beyond Vouching state.
     uint64 public requiredNumberOfVouches;
 
     /// @notice Multiplier for calculating the fee stake that must be paid in the case where arbitrator refused to arbitrate.
@@ -211,7 +211,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     event RevokeSoul(address indexed requester, uint160 indexed soulId, uint256 requestId);
     event VouchAdded(address indexed humanId, uint160 indexed _soulId, address indexed voucher);
     event VouchRemoved(address indexed humanId, uint160 indexed _soulId, address indexed voucher);
-    event RequestChallenged(address indexed humanId, uint256 indexed requestId, uint256 challengeId);
+    event RequestChallenged(uint160 indexed soulId, uint256 indexed requestId, uint256 challengeId);
     event AppealContribution(
         uint160 indexed soulId,
         uint256 indexed challengeId,
@@ -292,10 +292,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint160 _soulId,
         address _owner,
         uint64 _expirationTime
-    ) external override onlyCrossChain {
+    ) external override onlyCrossChain returns (bool success) {
         Soul storage soul = souls[_soulId];
 
-        if (_soulClaimed(soul) || _getOldProofOfHumanity().isRegistered(_owner)) return;
+        if (_soulClaimed(soul) || _getOldProofOfHumanity().isRegistered(_owner)) return false;
 
         require(_noOngoingClaim(_owner));
 
@@ -307,6 +307,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         if (soul.nbRequests == 0) soulsCounter++;
         uint256 requestId = ++soul.nbRequests;
         soul.requests[requestId].status = Status.Resolved;
+
+        return true;
     }
 
     /** @notice Directly revoke a soul via cross-chain instance/governor.
@@ -727,21 +729,21 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Reason must not have been used for this request.
      *  - Challenger side must be fully paid.
      *
-     *  @param _claimer Address of the human which request to challenge.
+     *  @param _soulId Id of the soul the request to challenge corresponds to.
+     *  @param _requestId Id of the request to challenge.
      *  @param _reason Reason to challenge the request.
      *  @param _evidence Link to evidence using its URI. Ignored if not provided.
      */
     function challengeRequest(
-        address _claimer,
+        uint160 _soulId,
+        uint64 _requestId,
         Reason _reason,
         string calldata _evidence
     ) external payable {
-        uint160 soulId = humans[_claimer];
-        Soul storage soul = souls[soulId];
-        uint256 requestId = soul.claimers[_claimer];
+        Soul storage soul = souls[_soulId];
         require(soul.pendingRevokal == (_reason == Reason.None));
 
-        Request storage request = souls[soulId].requests[requestId];
+        Request storage request = souls[_soulId].requests[_requestId];
         require(request.status == Status.Resolving);
         require(request.challengePeriodEnd >= uint64(block.timestamp));
 
@@ -774,17 +776,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         DisputeData storage disputeData = arbitratorDisputeIdToDisputeData[address(arbitratorData.arbitrator)][
             challenge.disputeId
         ];
-        disputeData.soulId = soulId;
-        disputeData.requestId = uint96(requestId);
+        disputeData.soulId = _soulId;
+        disputeData.requestId = uint96(_requestId);
         disputeData.challengeId = uint96(request.lastChallengeId);
 
         request.status = Status.Disputed;
         request.lastChallengeId++;
         challenge.lastRoundId++;
 
-        emit RequestChallenged(_claimer, requestId, disputeData.challengeId);
+        emit RequestChallenged(_soulId, _requestId, disputeData.challengeId);
 
-        uint256 evidenceGroupId = requestId + uint256(soulId);
+        uint256 evidenceGroupId = _requestId + uint256(_soulId);
 
         emit Dispute(
             arbitratorData.arbitrator,
@@ -874,13 +876,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Request must be in resolving state.
      *  - Challenge period must have ended.
      *
-     *  @param _claimer Address of the human whose request to execute.
+     *  @param _soulId Id of the soul the request to execute corresponds to.
+     *  @param _requestId Id of the request to execute.
      */
-    function executeRequest(address _claimer) external {
-        uint160 soulId = humans[_claimer];
-        Soul storage soul = souls[soulId];
-        uint256 requestId = soul.claimers[_claimer];
-        Request storage request = soul.requests[requestId];
+    function executeRequest(uint160 _soulId, uint64 _requestId) external {
+        Soul storage soul = souls[_soulId];
+        Request storage request = soul.requests[_requestId];
         require(request.status == Status.Resolving);
         require(request.challengePeriodEnd < uint64(block.timestamp));
 
@@ -897,9 +898,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         request.status = Status.Resolved;
         delete soul.claimers[request.requester];
 
-        if (request.vouches.length != 0) processVouches(soulId, requestId, _AUTO_PROCESSED_VOUCH);
+        if (request.vouches.length != 0) processVouches(_soulId, _requestId, _AUTO_PROCESSED_VOUCH);
 
-        withdrawFeesAndRewards(request.requester, soulId, requestId, 0, 0); // Automatically withdraw for the requester.
+        withdrawFeesAndRewards(request.requester, _soulId, _requestId, 0, 0); // Automatically withdraw for the requester.
     }
 
     /** @notice Process vouches of the resolved request, so vouchings of users who vouched for it can be used for other humans.
@@ -1050,7 +1051,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 delete humans[soul.owner];
             }
         } else {
-            // For a registration request there can be more than one dispute.
+            // For a claim request there can be more than one dispute.
             if (resultRuling == Party.Requester) {
                 // Check whether or not the requester won all of his previous disputes for current reason.
                 if (!request.requesterLost) {
@@ -1326,6 +1327,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             uint8 usedReasons,
             uint16 arbitratorDataId,
             uint16 lastChallengeId,
+            uint64 challengePeriodEnd,
             address payable requester,
             address payable ultimateChallenger,
             Status status,
@@ -1338,6 +1340,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             request.usedReasons,
             request.arbitratorDataId,
             request.lastChallengeId,
+            request.challengePeriodEnd,
             request.requester,
             request.ultimateChallenger,
             request.status,
