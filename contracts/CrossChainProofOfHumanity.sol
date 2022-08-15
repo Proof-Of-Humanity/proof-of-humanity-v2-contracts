@@ -21,11 +21,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bytes32 transferHash; // unique hash of the transfer == keccak256(soulID, chainID, nonce)
     }
 
-    struct Soul {
+    struct CrossChainSoul {
         bool isHomeChain; // whether current chain is home chain of the soul
-        uint64 expirationTime; // expirationTime at the moment of update
+        uint40 expirationTime; // expirationTime at the moment of update
         address owner; // the owner address
-        uint256 lastTransferTime; // time of the last received transfer
+        uint40 lastTransferTime; // time of the last received transfer
     }
 
     // ========== STORAGE ==========
@@ -52,7 +52,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     mapping(address => bool) public bridgeGateways;
 
     /// @dev Mapping of the soul IDs to corresponding soul struct
-    mapping(uint160 => Soul) public souls;
+    mapping(uint160 => CrossChainSoul) public souls;
 
     /// @dev Mapping of the humanIDs to corresponding soul IDs
     mapping(address => uint160) public humans;
@@ -119,14 +119,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Adds bridge gateway contract address to whitelist
      *  @param _bridgeGateway the address of the new bridge gateway contract
-     *  @param _remove whether to add/remove the gateway
+     *  @param _approved whether the gateway is approved
      */
-    function setBridgeGateway(address _bridgeGateway, bool _remove) external onlyGovernor {
-        if (_remove) require(bridgeGateways[_bridgeGateway]);
-        else require(!bridgeGateways[_bridgeGateway]);
+    function setBridgeGateway(address _bridgeGateway, bool _approved) external onlyGovernor {
+        if (_approved) require(!bridgeGateways[_bridgeGateway]);
+        else require(bridgeGateways[_bridgeGateway]);
 
-        bridgeGateways[_bridgeGateway] = !_remove;
-        emit GatewayUpdated(_bridgeGateway, !_remove);
+        bridgeGateways[_bridgeGateway] = _approved;
+        emit GatewayUpdated(_bridgeGateway, _approved);
     }
 
     // ========== REQUESTS ==========
@@ -139,7 +139,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getSoulInfo(_soulId);
         bool soulClaimed = proofOfHumanity.isSoulClaimed(_soulId);
 
-        Soul storage soul = souls[_soulId];
+        CrossChainSoul storage soul = souls[_soulId];
         require(soul.isHomeChain || soulClaimed, "Must update from home chain");
         soul.isHomeChain = true;
 
@@ -161,10 +161,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         // This function requires soul to be active, status None and human not vouching at the moment
         (uint64 expirationTime, uint160 soulID) = proofOfHumanity.revokeSoulManually(msg.sender);
 
-        Soul storage soul = souls[soulID];
+        CrossChainSoul storage soul = souls[soulID];
         require(block.timestamp > soul.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        soul.expirationTime = expirationTime;
+        soul.expirationTime = uint40(expirationTime);
         soul.owner = msg.sender;
         soul.isHomeChain = false;
 
@@ -194,7 +194,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function retryFailedTransfer(uint160 _soulId) external {
         (, , , uint64 expirationTime, , ) = proofOfHumanity.getSoulInfo(_soulId);
 
-        Soul memory soul = souls[_soulId];
+        CrossChainSoul memory soul = souls[_soulId];
         Transfer memory transfer = transfers[_soulId];
         require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
         require(expirationTime == transfer.expirationTime, "Soul time mismatch");
@@ -224,7 +224,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         uint64 _expirationTime,
         bool _isActive
     ) external override allowedGateway(msg.sender) {
-        Soul storage soul = souls[_soulId];
+        CrossChainSoul storage soul = souls[_soulId];
 
         // Clean human soulID for past owner
         delete humans[soul.owner];
@@ -234,7 +234,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             soul.owner = _humanID;
         } else delete soul.owner;
 
-        soul.expirationTime = _expirationTime;
+        soul.expirationTime = uint40(_expirationTime);
         soul.isHomeChain = false;
 
         emit UpdateReceived(_humanID, _soulId, _expirationTime);
@@ -256,7 +256,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         // Requires no status or phase for the soul and human respectively
         bool success = proofOfHumanity.grantSoulManually(_soulId, _humanID, _expirationTime);
 
-        Soul storage soul = souls[_soulId];
+        CrossChainSoul storage soul = souls[_soulId];
 
         // Clean human soulID for past owner
         delete humans[soul.owner];
@@ -265,9 +265,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             humans[_humanID] = _soulId;
 
             soul.owner = _humanID;
-            soul.expirationTime = _expirationTime;
+            soul.expirationTime = uint40(_expirationTime);
             soul.isHomeChain = true;
-            soul.lastTransferTime = block.timestamp;
+            soul.lastTransferTime = uint40(block.timestamp);
         }
 
         receivedTransferHashes[_transferHash] = true;
@@ -279,7 +279,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     function isRegistered(address _humanID) external view returns (bool) {
         uint160 soulID = humans[_humanID];
-        Soul memory soul = souls[soulID];
+        CrossChainSoul memory soul = souls[soulID];
 
         return
             proofOfHumanity.isRegistered(_humanID) ||

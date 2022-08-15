@@ -74,30 +74,35 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Owner must be in this struct in order to know the real owner during renewal process.
      */
     struct Soul {
+        address owner; // Address corresponding to the soul.
+        uint64 expirationTime; // Time when the soul expires.
         bool vouching; // True if the human used its vouch for another human. This is set back to false once the vouch is processed.
         bool pendingRevokal; // True if the human is in the process of revokal.
         uint64 nbPendingRequests; // Number of pending requests in challenging phase.
-        uint64 expirationTime; // Time when the soul expires.
-        address owner; // Address corresponding to the soul.
-        uint256 nbRequests; // Number of requests made for the soul.
+        uint64 nbRequests; // Number of requests made for the soul.
         mapping(address => uint256) claimers; // Mapping of the claimer address to the id of the current claim request.
         mapping(uint256 => Request) requests; // Mapping of the ids to corresponding requests.
     }
 
     struct Request {
         bool typeRevokal; // True if the request is a revokal request. False if it is a renewal request.
-        bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
+        Status status; // Current status of the request.
+        Reason currentReason; // Current reason a claim request was challenged with. Is left empty for removal requests.
         uint8 usedReasons; // Bitmap of the reasons used by challengers of this request.
         uint16 arbitratorDataId; // Index of the relevant arbitratorData struct. All the arbitrator info is stored in a separate struct to reduce gas cost.
         uint16 lastChallengeId; // Id of the last challenge, which is equal to the total number of challenges for the request.
         uint32 lastProcessedVouch; // Stores the index of the last processed vouch in the array of vouches. It is used for partial processing of the vouches in resolved requests.
-        uint64 challengePeriodEnd; // Time until the request can be challenged.
         address payable requester; // Address that made the request.
         address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged human must pay the fines to this address.
-        Status status; // Current status of the request.
-        Reason currentReason; // Current reason a claim request was challenged with. Is left empty for removal requests.
+        uint64 challengePeriodEnd; // Time until the request can be challenged.
+        bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
         uint160[] vouches; // Stores the unique Ids of humans that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeId -> Challenge.
+    }
+
+    struct ContributionsSet {
+        uint256 forRequester;
+        uint256 forChallenger;
     }
 
     // Some arrays below have 3 elements to map with the Party enums for better readability:
@@ -107,15 +112,15 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     struct Round {
         Party sideFunded; // Stores the side that successfully paid the appeal fees in the latest round. Note that if both sides have paid a new round is created.
         uint256 feeRewards; // Sum of reimbursable fees and stake rewards available to the parties that made contributions to the side that ultimately wins a dispute.
-        uint256[3] paidFees; // Tracks the fees paid by each side in this round.
-        mapping(address => uint256[3]) contributions; // Maps contributors to their contributions for each side.
+        ContributionsSet paidFees; // Tracks the fees paid by each side in this round.
+        mapping(address => ContributionsSet) contributions; // Maps contributors to their contributions for each side.
     }
 
     struct Challenge {
         uint16 lastRoundId; // Id of the last round.
+        Party ruling; // Ruling given by the arbitrator of the dispute.
         address payable challenger; // Address that challenged the request.
         uint256 disputeId; // Id of the dispute related to the challenge.
-        Party ruling; // Ruling given by the arbitrator of the dispute.
         mapping(uint256 => Round) rounds; // Tracks the info of each funding round of the challenge.
     }
 
@@ -130,6 +135,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint96 metaEvidenceUpdates; // The meta evidence to be used in disputes.
         IArbitrator arbitrator; // Address of the trusted arbitrator to solve disputes.
         bytes arbitratorExtraData; // Extra data for the arbitrator.
+    }
+
+    struct SignatureVouch {
+        uint64 expirationTime;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
     }
 
     /// ====== STORAGE ====== ///
@@ -467,6 +479,18 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== REQUESTS ====== ///
 
+    function claimSoul(string calldata _evidence, string calldata _name) external payable {
+        _claimSoul(uint160(msg.sender), _evidence, _name);
+    }
+
+    function claimSoul(
+        uint160 _soulId,
+        string calldata _evidence,
+        string calldata _name
+    ) external payable {
+        _claimSoul(_soulId, _evidence, _name);
+    }
+
     /** @notice Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {ClaimSoul} event.
@@ -480,22 +504,19 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _evidence Link to evidence using its URI.
      *  @param _name Name of the human (for Subgraph only and it won't be used in this function).
      */
-    function claimSoul(
+    function _claimSoul(
         uint160 _soulId,
         string calldata _evidence,
         string calldata _name
-    ) external payable {
-        // For UX, soulId parameter can be 0, in which case it is considered the sender wants to get the default value based on the address.
-        uint160 soulId = _soulId == 0 ? uint160(msg.sender) : _soulId;
-
-        Soul storage soul = souls[soulId];
+    ) internal {
+        Soul storage soul = souls[_soulId];
 
         require(!isRegistered(msg.sender));
         require(!_soulClaimed(soul));
 
         uint256 requestId = _requestSoul(_soulId, _evidence);
 
-        emit SoulClaim(msg.sender, soulId, requestId, _evidence, _name);
+        emit SoulClaim(msg.sender, _soulId, requestId, _evidence, _name);
     }
 
     /** @notice Make a request to renew soul's lifespan. Paying the full deposit right away is not required as it can be crowdfunded later.
@@ -655,14 +676,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @param _claimer The address of the human whose request status to advance.
      *  @param _vouches Array of users whose vouches to count (optional).
-     *  @param _signatures Array of EIP-712 signatures of struct IsHumanVoucher (optional).
-     *  @param _expirationTimestamps Array of expiration timestamps for each signature (optional).
+     *  @param _signatureVouches Array of EIP-712 signatures of struct IsHumanVoucher (optional).
      */
     function advanceState(
         address _claimer,
         address[] calldata _vouches,
-        bytes[] calldata _signatures,
-        uint256[] calldata _expirationTimestamps
+        SignatureVouch[] calldata _signatureVouches
     ) external {
         uint160 soulId = humans[_claimer];
         Soul storage soul = souls[soulId];
@@ -674,13 +693,25 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         uint256 i;
         while (request.vouches.length < requiredNumberOfVouches) {
-            if (i < _signatures.length) {
-                address voucherAddress = _recoverVoucher(
-                    _signatures[i],
-                    keccak256(abi.encode(_IS_HUMAN_VOUCHER_TYPEHASH, _claimer, soulId, _expirationTimestamps[i]))
+            if (i < _signatureVouches.length) {
+                SignatureVouch memory signature = _signatureVouches[i];
+                address voucherAddress = ecrecover(
+                    keccak256(
+                        abi.encodePacked(
+                            "\x19\x01",
+                            _DOMAIN_SEPARATOR,
+                            keccak256(
+                                abi.encode(_IS_HUMAN_VOUCHER_TYPEHASH, _claimer, soulId, signature.expirationTime)
+                            )
+                        )
+                    ),
+                    signature.v,
+                    signature.r,
+                    signature.s
                 );
-                uint160 voucherSoulId = humans[voucherAddress];
-                if (block.timestamp < _expirationTimestamps[i] && _vouchValid(voucherAddress, _claimer)) {
+
+                if (block.timestamp < signature.expirationTime && _vouchValid(voucherAddress, _claimer)) {
+                    uint160 voucherSoulId = humans[voucherAddress];
                     request.vouches.push(voucherSoulId);
                     souls[voucherSoulId].vouching = true;
 
@@ -688,7 +719,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                 }
             } else {
                 // Overflows if the end of _vouches has been reached and not enough valid vouches were gathered.
-                address voucherAddress = _vouches[i - _signatures.length];
+                address voucherAddress = _vouches[i - _signatureVouches.length];
                 uint160 voucherSoulId = humans[voucherAddress];
                 if (vouches[voucherAddress][_claimer][soulId] && _vouchValid(voucherAddress, _claimer)) {
                     request.vouches.push(voucherSoulId);
@@ -743,7 +774,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         if (request.currentReason != _reason) {
             // Get the bit that corresponds with reason's index.
-            uint8 reasonBit = uint8(1 << (uint256(_reason) - 1));
+            uint8 reasonBit;
+            unchecked {
+                reasonBit = uint8(1 << (uint256(_reason) - 1));
+            }
 
             require((reasonBit & ~request.usedReasons) == reasonBit);
 
@@ -875,7 +909,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requestId Id of the request to execute.
      */
     function executeRequest(uint160 _soulId, uint256 _requestId) external {
-        // TODO KEEP UINT256 OR CHANGE REQUESTS MAPPNG TO UINT64->...
         Soul storage soul = souls[_soulId];
         Request storage request = soul.requests[_requestId];
         require(request.status == Status.Resolving);
@@ -919,8 +952,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = souls[_soulId].requests[_requestId];
         require(request.status == Status.Resolved, "Not resolved");
 
-        uint256 lastProcessedVouch = request.lastProcessedVouch;
-        uint256 endIndex = _iterations + lastProcessedVouch;
+        uint256 lastProcessed = request.lastProcessedVouch;
+        uint256 endIndex = _iterations + lastProcessed;
         uint256 vouchCount = request.vouches.length;
 
         if (endIndex > vouchCount) endIndex = vouchCount;
@@ -929,8 +962,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         bool applyPenalty = request.ultimateChallenger != address(0x0) &&
             (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
 
-        for (uint256 i = lastProcessedVouch; i < endIndex; i++) {
-            Soul storage voucherSoul = souls[request.vouches[i]];
+        while (lastProcessed < endIndex) {
+            Soul storage voucherSoul = souls[request.vouches[lastProcessed]];
             voucherSoul.vouching = false;
             if (applyPenalty) {
                 // Check the situation when vouching address is in the middle of renewal process.
@@ -938,6 +971,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                 if (voucherRequestId != 0) voucherSoul.requests[voucherRequestId].requesterLost = true;
 
                 delete voucherSoul.owner;
+            }
+
+            unchecked {
+                lastProcessed++;
             }
         }
         request.lastProcessedVouch = uint32(endIndex);
@@ -972,32 +1009,35 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         Party ruling = challenge.ruling;
         uint256 reward;
-        uint256[3] storage beneficiaryContributions = round.contributions[_beneficiary];
-        // Reimburse the payment if the last round wasn't fully funded.
-        // Note that the 0 round is always considered funded if there is a challenge. If there was no challenge the requester will be reimbursed with the subsequent condition, since the ruling will be Party.None.
+        ContributionsSet storage beneficiaryContributions = round.contributions[_beneficiary];
         if (_round != 0 && _round == challenge.lastRoundId) {
-            reward =
-                beneficiaryContributions[uint256(Party.Requester)] +
-                beneficiaryContributions[uint256(Party.Challenger)];
+            // Reimburse the payment if the last round wasn't fully funded.
+            // Note that the 0 round is always considered funded if there is a challenge. If there was no challenge the requester will be reimbursed with the subsequent condition, since the ruling will be Party.None.
+            reward = beneficiaryContributions.forRequester + beneficiaryContributions.forChallenger;
         } else if (ruling == Party.None) {
-            uint256 totalFeesInRound = round.paidFees[uint256(Party.Challenger)] +
-                round.paidFees[uint256(Party.Requester)];
-            uint256 claimableFees = beneficiaryContributions[uint256(Party.Challenger)] +
-                beneficiaryContributions[uint256(Party.Requester)];
+            uint256 totalFeesInRound = round.paidFees.forChallenger + round.paidFees.forRequester;
+            uint256 claimableFees = beneficiaryContributions.forChallenger + beneficiaryContributions.forRequester;
             if (totalFeesInRound > 0) reward = (claimableFees * round.feeRewards) / totalFeesInRound;
-        } else {
+        } else if (_beneficiary == request.ultimateChallenger && _challengeId == 0 && _round == 0) {
             // Challenger, who ultimately wins, will be able to get the deposit of the requester, even if he didn't participate in the initial dispute.
-            if (_beneficiary == request.ultimateChallenger && _challengeId == 0 && _round == 0) {
-                reward = round.feeRewards;
-                round.feeRewards = 0;
-                // This condition will prevent claiming a reward, intended for the ultimate challenger.
-            } else if (request.ultimateChallenger == address(0x0) || _challengeId != 0 || _round != 0) {
-                uint256 paidFees = round.paidFees[uint256(ruling)];
-                if (paidFees > 0) reward = (beneficiaryContributions[uint256(ruling)] * round.feeRewards) / paidFees;
+            reward = round.feeRewards;
+            round.feeRewards = 0;
+        } else if (request.ultimateChallenger == address(0x0) || _challengeId != 0 || _round != 0) {
+            // This condition will prevent claiming a reward, intended for the ultimate challenger.
+            uint256 paidFeesForWinner;
+            uint256 contributionForWinner;
+            if (ruling == Party.Requester) {
+                paidFeesForWinner = round.paidFees.forRequester;
+                contributionForWinner = beneficiaryContributions.forRequester;
+            } else {
+                paidFeesForWinner = round.paidFees.forChallenger;
+                contributionForWinner = beneficiaryContributions.forChallenger;
             }
+            if (paidFeesForWinner > 0) reward = (contributionForWinner * round.feeRewards) / paidFeesForWinner;
         }
-        beneficiaryContributions[uint256(Party.Requester)] = 0;
-        beneficiaryContributions[uint256(Party.Challenger)] = 0;
+
+        beneficiaryContributions.forRequester = 0;
+        beneficiaryContributions.forChallenger = 0;
         _beneficiary.send(reward);
 
         emit FeesAndRewardsWithdrawn(_beneficiary, _soulId, _requestId, _challengeId, _round);
@@ -1157,7 +1197,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     ) internal returns (bool paidInFull) {
         uint256 remainingETH;
         uint256 contribution = msg.value;
-        uint256 requiredAmount = _totalRequired - _round.paidFees[uint256(_side)];
+        uint256 requiredAmount = _totalRequired -
+            (_side == Party.Requester ? _round.paidFees.forRequester : _round.paidFees.forChallenger);
         if (requiredAmount <= msg.value) {
             contribution = requiredAmount;
             remainingETH = msg.value - requiredAmount;
@@ -1166,35 +1207,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             _round.sideFunded = _round.sideFunded == Party.None ? _side : Party.None;
         }
 
-        _round.contributions[msg.sender][uint256(_side)] += contribution;
-        _round.paidFees[uint256(_side)] += contribution;
+        if (_side == Party.Requester) {
+            _round.contributions[msg.sender].forRequester += contribution;
+            _round.paidFees.forRequester += contribution;
+        } else {
+            _round.contributions[msg.sender].forChallenger += contribution;
+            _round.paidFees.forChallenger += contribution;
+        }
         _round.feeRewards += contribution;
 
         if (remainingETH != 0) payable(msg.sender).send(remainingETH);
-    }
-
-    /** @notice Recover voucher address from isHumanVoucher signature.
-     *
-     *  @dev Requirements:
-     *  - Valid signature.
-     *
-     *  @param _signature Signature from which to recover the voucher address.
-     *  @param _messageHash Message hash corresponding to isHumanVoucher struct.
-     *  @return Recovered voucher address.
-     */
-    function _recoverVoucher(bytes memory _signature, bytes32 _messageHash) internal view returns (address) {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-        assembly {
-            r := mload(add(_signature, 0x20))
-            s := mload(add(_signature, 0x40))
-            v := byte(0, mload(add(_signature, 0x60)))
-        }
-        if (v < 27) v += 27;
-        require(v == 27 || v == 28);
-
-        return ecrecover(keccak256(abi.encodePacked("\x19\x01", _DOMAIN_SEPARATOR, _messageHash)), v, r, s);
     }
 
     /// ====== GETTERS ====== ///
@@ -1254,7 +1276,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function isRegistered(address _humanId) public view override returns (bool) {
         Soul storage soul = souls[humans[_humanId]];
-        return soul.owner == _humanId && _soulClaimed(soul);
+        return soul.owner == _humanId && soul.expirationTime >= block.timestamp;
     }
 
     /** @notice Get the number of times the arbitrator data was updated.
@@ -1368,15 +1390,21 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         view
         returns (
             bool appealed,
-            uint256[3] memory paidFees,
+            uint256 feesPaidForRequester,
+            uint256 feesPaidForChallenger,
             Party sideFunded,
             uint256 feeRewards
         )
     {
         Challenge storage challenge = souls[_soulId].requests[_requestId].challenges[_challengeId];
         Round storage round = challenge.rounds[_round];
-        appealed = _round < (challenge.lastRoundId);
-        return (appealed, round.paidFees, round.sideFunded, round.feeRewards);
+        return (
+            _round < (challenge.lastRoundId),
+            round.paidFees.forRequester,
+            round.paidFees.forChallenger,
+            round.sideFunded,
+            round.feeRewards
+        );
     }
 
     /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
@@ -1385,7 +1413,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _challengeId the challenge to query.
      *  @param _round The round to query.
      *  @param _contributor The address of the contributor.
-     *  @return The contributions.
      */
     function getContributions(
         uint160 _soulId,
@@ -1393,8 +1420,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 _challengeId,
         uint256 _round,
         address _contributor
-    ) external view returns (uint256[3] memory) {
-        return souls[_soulId].requests[_requestId].challenges[_challengeId].rounds[_round].contributions[_contributor];
+    ) external view returns (uint256 forRequester, uint256 forChallenger) {
+        ContributionsSet memory contributions = souls[_soulId]
+            .requests[_requestId]
+            .challenges[_challengeId]
+            .rounds[_round]
+            .contributions[_contributor];
+        return (contributions.forRequester, contributions.forChallenger);
     }
 
     /** @notice Get the number of vouches of a particular request.
