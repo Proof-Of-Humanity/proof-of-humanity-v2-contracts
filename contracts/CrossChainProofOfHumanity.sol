@@ -144,7 +144,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         soul.isHomeChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveUpdate, (owner, _soulId, expirationTime, soulClaimed))
+            abi.encodeWithSelector(
+                ICrossChainProofOfHumanity.receiveUpdate.selector,
+                owner,
+                _soulId,
+                expirationTime,
+                soulClaimed
+            )
         );
     }
 
@@ -172,7 +178,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         transfer.bridgeGateway = _bridgeGateway;
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeCall(this.receiveTransfer, (msg.sender, soulID, expirationTime, nonce))
+            abi.encodeWithSelector(
+                ICrossChainProofOfHumanity.receiveTransfer.selector,
+                msg.sender,
+                soulID,
+                expirationTime,
+                nonce
+            )
         );
     }
 
@@ -188,9 +200,12 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         require(expirationTime == transfer.expirationTime, "Soul time mismatch");
 
         IBridgeGateway(transfer.bridgeGateway).sendMessage(
-            abi.encodeCall(
-                this.receiveTransfer,
-                (soul.owner, transfer.soulID, transfer.expirationTime, transfer.transferHash)
+            abi.encodeWithSelector(
+                ICrossChainProofOfHumanity.receiveTransfer.selector,
+                soul.owner,
+                transfer.soulID,
+                transfer.expirationTime,
+                transfer.transferHash
             )
         );
     }
