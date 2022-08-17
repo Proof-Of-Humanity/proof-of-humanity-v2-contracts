@@ -15,9 +15,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== STRUCTS ==========
 
     struct Transfer {
-        uint64 expirationTime; // expirationTime at the moment of transfer
         uint160 soulID; // the unique id corresponding to the soul to transfer
-        address bridgeGateway; // bridge gateway used for the transfer
+        uint64 soulExpirationTime; // expirationTime at the moment of transfer
+        address foreignProxy;
+        uint64 initiationTime;
         bytes32 transferHash; // unique hash of the transfer == keccak256(soulID, chainID, nonce)
     }
 
@@ -26,6 +27,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         uint40 expirationTime; // expirationTime at the moment of update
         address owner; // the owner address
         uint40 lastTransferTime; // time of the last received transfer
+    }
+
+    struct GatewayInfo {
+        address foreignProxy;
+        bool approved;
     }
 
     // ========== STORAGE ==========
@@ -42,14 +48,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Cooldown a soul has to wait for transferring again after a past received transfer.
     uint256 public transferCooldown;
 
-    /// @dev nonce to be used as transfer hash
-    bytes32 public nonce;
-
     /// @dev Mapping of the received transfer hashes
     mapping(bytes32 => bool) public receivedTransferHashes;
 
     /// @dev Whitelist of trusted bridge gateway contracts
-    mapping(address => bool) public bridgeGateways;
+    mapping(address => GatewayInfo) public bridgeGateways;
 
     /// @dev Mapping of the soul IDs to corresponding soul struct
     mapping(uint160 => CrossChainSoul) public souls;
@@ -78,7 +81,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     modifier allowedGateway(address _bridgeGateway) {
-        require(bridgeGateways[_bridgeGateway]);
+        require(bridgeGateways[_bridgeGateway].approved);
         _;
     }
 
@@ -117,16 +120,17 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         transferCooldown = _transferCooldown;
     }
 
-    /** @notice Adds bridge gateway contract address to whitelist
-     *  @param _bridgeGateway the address of the new bridge gateway contract
-     *  @param _approved whether the gateway is approved
-     */
-    function setBridgeGateway(address _bridgeGateway, bool _approved) external onlyGovernor {
-        if (_approved) require(!bridgeGateways[_bridgeGateway]);
-        else require(bridgeGateways[_bridgeGateway]);
+    function addBridgeGateway(address _bridgeGateway, address foreignProxy) external onlyGovernor {
+        require(_bridgeGateway != address(0));
+        require(!bridgeGateways[_bridgeGateway].approved);
+        bridgeGateways[_bridgeGateway] = GatewayInfo(foreignProxy, true);
+        emit GatewayUpdated(_bridgeGateway, true);
+    }
 
-        bridgeGateways[_bridgeGateway] = _approved;
-        emit GatewayUpdated(_bridgeGateway, _approved);
+    function removeBridgeGateway(address _bridgeGateway) external onlyGovernor {
+        require(bridgeGateways[_bridgeGateway].approved);
+        delete bridgeGateways[_bridgeGateway];
+        emit GatewayUpdated(_bridgeGateway, false);
     }
 
     // ========== REQUESTS ==========
@@ -171,19 +175,21 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         humans[msg.sender] = soulID;
 
         Transfer storage transfer = transfers[soulID];
-        nonce = keccak256(abi.encodePacked(soulID, block.chainid, nonce));
-        transfer.transferHash = nonce;
-        transfer.expirationTime = expirationTime;
+        transfer.transferHash = keccak256(
+            abi.encodePacked(soulID, block.timestamp, address(this), bridgeGateways[_bridgeGateway].foreignProxy)
+        );
         transfer.soulID = soulID;
-        transfer.bridgeGateway = _bridgeGateway;
+        transfer.soulExpirationTime = expirationTime;
+        transfer.initiationTime = uint64(block.timestamp);
+        transfer.foreignProxy = bridgeGateways[_bridgeGateway].foreignProxy;
 
-        IBridgeGateway(transfer.bridgeGateway).sendMessage(
+        IBridgeGateway(_bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransfer.selector,
                 msg.sender,
                 soulID,
                 expirationTime,
-                nonce
+                transfer.transferHash
             )
         );
     }
@@ -191,21 +197,43 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /** @notice Retry a failed transfer
      *  @param _soulId ID of the soul to retry transfer for
      */
-    function retryFailedTransfer(uint160 _soulId) external {
+    function retryFailedTransfer(uint160 _soulId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         (, , , uint64 expirationTime, , ) = proofOfHumanity.getSoulInfo(_soulId);
 
         CrossChainSoul memory soul = souls[_soulId];
         Transfer memory transfer = transfers[_soulId];
-        require(bridgeGateways[transfer.bridgeGateway], "Bridge gateway not supported");
-        require(expirationTime == transfer.expirationTime, "Soul time mismatch");
+        require(bridgeGateways[_bridgeGateway].approved, "Bridge gateway not supported");
+        require(expirationTime == transfer.soulExpirationTime, "Soul time mismatch");
 
-        IBridgeGateway(transfer.bridgeGateway).sendMessage(
+        IBridgeGateway(_bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransfer.selector,
                 soul.owner,
                 transfer.soulID,
-                transfer.expirationTime,
+                transfer.soulExpirationTime,
                 transfer.transferHash
+            )
+        );
+    }
+
+    function revertTransfer(
+        uint160 _soulID,
+        uint64 _initiationTime,
+        address _bridgeGateway
+    ) external allowedGateway(_bridgeGateway) {
+        bytes32 revertedTransferHash = keccak256(
+            abi.encodePacked(_soulID, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
+        );
+
+        require(!receivedTransferHashes[revertedTransferHash]);
+
+        receivedTransferHashes[revertedTransferHash] = true;
+
+        IBridgeGateway(_bridgeGateway).sendMessage(
+            abi.encodeWithSelector(
+                ICrossChainProofOfHumanity.receiveTransferReversion.selector,
+                _soulID,
+                _initiationTime
             )
         );
     }
@@ -273,6 +301,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         receivedTransferHashes[_transferHash] = true;
 
         emit TransferReceived(_humanID);
+    }
+
+    function receiveTransferReversion(uint160 _soulID, uint64 _initiationTime)
+        external
+        override
+        allowedGateway(msg.sender)
+    {
+        Transfer memory transfer = transfers[_soulID];
+        bytes32 revertedTransferHash = keccak256(
+            abi.encodePacked(_soulID, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
+        );
+
+        require(transfer.transferHash == revertedTransferHash);
+        require(transfer.soulExpirationTime > block.timestamp);
+
+        proofOfHumanity.grantSoulManually(_soulID, souls[_soulID].owner, transfer.soulExpirationTime);
     }
 
     // ========== VIEWS ==========
