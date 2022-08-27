@@ -233,7 +233,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransferReversion.selector,
                 _soulID,
-                _initiationTime
+                _initiationTime,
+                msg.sender
             )
         );
     }
@@ -303,11 +304,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         emit TransferReceived(_humanID);
     }
 
-    function receiveTransferReversion(uint160 _soulID, uint64 _initiationTime)
-        external
-        override
-        allowedGateway(msg.sender)
-    {
+    function receiveTransferReversion(
+        uint160 _soulID,
+        uint64 _initiationTime,
+        address _initiator
+    ) external override allowedGateway(msg.sender) {
         Transfer memory transfer = transfers[_soulID];
         bytes32 revertedTransferHash = keccak256(
             abi.encodePacked(_soulID, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
@@ -315,6 +316,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         require(transfer.transferHash == revertedTransferHash);
         require(transfer.soulExpirationTime > block.timestamp);
+        require(souls[_soulID].owner == _initiator);
 
         proofOfHumanity.grantSoulManually(_soulID, souls[_soulID].owner, transfer.soulExpirationTime);
     }

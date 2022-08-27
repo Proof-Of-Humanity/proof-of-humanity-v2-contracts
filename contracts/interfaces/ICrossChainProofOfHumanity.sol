@@ -20,5 +20,9 @@ interface ICrossChainProofOfHumanity {
 
     event TransferReceived(address _humanID);
 
-    function receiveTransferReversion(uint160 _soulID, uint64 _initiationTime) external;
+    function receiveTransferReversion(
+        uint160 _soulID,
+        uint64 _initiationTime,
+        address _initiator
+    ) external;
 }
