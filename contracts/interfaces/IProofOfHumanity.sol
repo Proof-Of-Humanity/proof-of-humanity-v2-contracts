@@ -4,21 +4,21 @@ pragma solidity 0.8.14;
 interface IProofOfHumanity {
     /* Manual adding/removing */
 
-    function grantSoulManually(
-        uint160 _qid,
-        address _submissionID,
+    function grantManually(
+        bytes20 _qid,
+        address _owner,
         uint64 _submissionTime
     ) external returns (bool success);
 
-    function revokeSoulManually(address _submissionID) external returns (uint64 expirationTime, uint160 soulID);
+    function revokeManually(address _owner) external returns (uint64 expirationTime, bytes20 humanityId);
 
     /* Views */
 
-    function isSoulClaimed(uint160 _soulId) external view returns (bool);
+    function isClaimed(bytes20 _humanityId) external view returns (bool);
 
-    function isRegistered(address _submissionID) external view returns (bool);
+    function isHuman(address _address) external view returns (bool);
 
-    function getSoulInfo(uint160 _soulId)
+    function getHumanityInfo(bytes20 _humanityId)
         external
         view
         returns (
