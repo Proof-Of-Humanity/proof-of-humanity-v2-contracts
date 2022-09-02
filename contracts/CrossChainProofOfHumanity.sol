@@ -15,23 +15,23 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== STRUCTS ==========
 
     struct Transfer {
-        uint160 soulID; // the unique id corresponding to the soul to transfer
-        uint64 soulExpirationTime; // expirationTime at the moment of transfer
-        address foreignProxy;
-        uint64 initiationTime;
-        bytes32 transferHash; // unique hash of the transfer == keccak256(soulID, chainID, nonce)
+        bytes20 humanityId; // the unique id corresponding to the humanity to transfer
+        uint64 humanityExpirationTime; // expirationTime at the moment of transfer
+        bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, chainID, nonce)
+        address foreignProxy; // address of the foreign proxy
+        uint64 initiationTime; // time the transfer was initiated
     }
 
-    struct CrossChainSoul {
-        bool isHomeChain; // whether current chain is home chain of the soul
+    struct CrossChainHumanity {
+        bool isHomeChain; // whether current chain is home chain of the humanity
         uint40 expirationTime; // expirationTime at the moment of update
         address owner; // the owner address
         uint40 lastTransferTime; // time of the last received transfer
     }
 
     struct GatewayInfo {
-        address foreignProxy;
-        bool approved;
+        address foreignProxy; // address of the foreign proxy
+        bool approved; // whether the gateway is approved
     }
 
     // ========== STORAGE ==========
@@ -45,7 +45,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Instance of the ProofOfHumanity contract
     IProofOfHumanity public proofOfHumanity;
 
-    /// @dev Cooldown a soul has to wait for transferring again after a past received transfer.
+    /// @dev Cooldown a humanity has to wait for transferring again after a past received transfer.
     uint256 public transferCooldown;
 
     /// @dev Mapping of the received transfer hashes
@@ -54,14 +54,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Whitelist of trusted bridge gateway contracts
     mapping(address => GatewayInfo) public bridgeGateways;
 
-    /// @dev Mapping of the soul IDs to corresponding soul struct
-    mapping(uint160 => CrossChainSoul) public souls;
+    /// @dev Mapping of the humanity IDs to corresponding humanity struct
+    mapping(bytes20 => CrossChainHumanity) public humanityMapping;
 
-    /// @dev Mapping of the humanIDs to corresponding soul IDs
-    mapping(address => uint160) public humans;
+    /// @dev Mapping of addresses to corresponding humanity IDs
+    mapping(address => bytes20) public humans;
 
-    /// @dev Mapping of the soul IDs to last corresponding outgoing transfer
-    mapping(uint160 => Transfer) public transfers;
+    /// @dev Mapping of the humanity IDs to last corresponding outgoing transfer
+    mapping(bytes20 => Transfer) public transfers;
 
     // ========== EVENTS ==========
 
@@ -89,7 +89,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Constructor
      *  @param _proofOfHumanity ProofOfHumanity contract address
-     *  @param _transferCooldown Period a soul has to wait to transfer again after a past received transfer.
+     *  @param _transferCooldown Period a humanity has to wait to transfer again after a past received transfer.
      */
     function initialize(IProofOfHumanity _proofOfHumanity, uint256 _transferCooldown) public initializer {
         governor = msg.sender;
@@ -113,8 +113,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         proofOfHumanity = _proofOfHumanity;
     }
 
-    /** @dev Change the cooldown a soul has to wait for transferring again after a past received transfer.
-     *  @param _transferCooldown The new duration the soul has to wait has to wait.
+    /** @dev Change the cooldown a humanity has to wait for transferring again after a past received transfer.
+     *  @param _transferCooldown The new duration the humanity has to wait has to wait.
      */
     function setTransferCooldown(uint256 _transferCooldown) external onlyGovernor {
         transferCooldown = _transferCooldown;
@@ -135,51 +135,51 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== REQUESTS ==========
 
-    /** @notice Sends an update of the soul status to the foreign chain
+    /** @notice Sends an update of the humanity status to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
-     *  @param _soulId Id of the soul to update
+     *  @param _humanityId Id of the humanity to update
      */
-    function updateSoul(address _bridgeGateway, uint160 _soulId) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getSoulInfo(_soulId);
-        bool soulClaimed = proofOfHumanity.isSoulClaimed(_soulId);
+    function updateHumanity(address _bridgeGateway, bytes20 _humanityId) external allowedGateway(_bridgeGateway) {
+        (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
+        bool humanityClaimed = proofOfHumanity.isClaimed(_humanityId);
 
-        CrossChainSoul storage soul = souls[_soulId];
-        require(soul.isHomeChain || soulClaimed, "Must update from home chain");
-        soul.isHomeChain = true;
+        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
+        require(humanity.isHomeChain || humanityClaimed, "Must update from home chain");
+        humanity.isHomeChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveUpdate.selector,
                 owner,
-                _soulId,
+                _humanityId,
                 expirationTime,
-                soulClaimed
+                humanityClaimed
             )
         );
     }
 
-    /** @notice Execute transfering the soul to the foreign chain
+    /** @notice Execute transfering the humanity to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
      */
-    function transferSoul(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        // This function requires soul to be active, status None and human not vouching at the moment
-        (uint64 expirationTime, uint160 soulID) = proofOfHumanity.revokeSoulManually(msg.sender);
+    function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
+        // This function requires humanity to be active, status None and human not vouching at the moment
+        (uint64 expirationTime, bytes20 humanityId) = proofOfHumanity.revokeManually(msg.sender);
 
-        CrossChainSoul storage soul = souls[soulID];
-        require(block.timestamp > soul.lastTransferTime + transferCooldown, "Can't transfer yet");
+        CrossChainHumanity storage humanity = humanityMapping[humanityId];
+        require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        soul.expirationTime = uint40(expirationTime);
-        soul.owner = msg.sender;
-        soul.isHomeChain = false;
+        humanity.expirationTime = uint40(expirationTime);
+        humanity.owner = msg.sender;
+        humanity.isHomeChain = false;
 
-        humans[msg.sender] = soulID;
+        humans[msg.sender] = humanityId;
 
-        Transfer storage transfer = transfers[soulID];
+        Transfer storage transfer = transfers[humanityId];
         transfer.transferHash = keccak256(
-            abi.encodePacked(soulID, block.timestamp, address(this), bridgeGateways[_bridgeGateway].foreignProxy)
+            abi.encodePacked(humanityId, block.timestamp, address(this), bridgeGateways[_bridgeGateway].foreignProxy)
         );
-        transfer.soulID = soulID;
-        transfer.soulExpirationTime = expirationTime;
+        transfer.humanityId = humanityId;
+        transfer.humanityExpirationTime = expirationTime;
         transfer.initiationTime = uint64(block.timestamp);
         transfer.foreignProxy = bridgeGateways[_bridgeGateway].foreignProxy;
 
@@ -187,7 +187,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransfer.selector,
                 msg.sender,
-                soulID,
+                humanityId,
                 expirationTime,
                 transfer.transferHash
             )
@@ -195,34 +195,40 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     /** @notice Retry a failed transfer
-     *  @param _soulId ID of the soul to retry transfer for
+     *  @param _humanityId ID of the humanity to retry transfer for
+     *  @param _bridgeGateway address of the bridge gateway to use
      */
-    function retryFailedTransfer(uint160 _soulId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, , ) = proofOfHumanity.getSoulInfo(_soulId);
+    function retryFailedTransfer(bytes20 _humanityId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
+        (, , , uint64 expirationTime, , ) = proofOfHumanity.getHumanityInfo(_humanityId);
 
-        CrossChainSoul memory soul = souls[_soulId];
-        Transfer memory transfer = transfers[_soulId];
+        CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+        Transfer memory transfer = transfers[_humanityId];
         require(bridgeGateways[_bridgeGateway].approved, "Bridge gateway not supported");
-        require(expirationTime == transfer.soulExpirationTime, "Soul time mismatch");
+        require(expirationTime == transfer.humanityExpirationTime, "Humanity time mismatch");
 
         IBridgeGateway(_bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransfer.selector,
-                soul.owner,
-                transfer.soulID,
-                transfer.soulExpirationTime,
+                humanity.owner,
+                transfer.humanityId,
+                transfer.humanityExpirationTime,
                 transfer.transferHash
             )
         );
     }
 
+    /** @notice Revert a (supposedly) failed transfer
+     *  @param _humanityId ID of the humanity to revert transfer of
+     *  @param _initiationTime Timestamp when the transfer was initiatiated
+     *  @param _bridgeGateway address of the bridge gateway to use
+     */
     function revertTransfer(
-        uint160 _soulID,
+        bytes20 _humanityId,
         uint64 _initiationTime,
         address _bridgeGateway
     ) external allowedGateway(_bridgeGateway) {
         bytes32 revertedTransferHash = keccak256(
-            abi.encodePacked(_soulID, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
+            abi.encodePacked(_humanityId, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
         );
 
         require(!receivedTransferHashes[revertedTransferHash]);
@@ -232,7 +238,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         IBridgeGateway(_bridgeGateway).sendMessage(
             abi.encodeWithSelector(
                 ICrossChainProofOfHumanity.receiveTransferReversion.selector,
-                _soulID,
+                _humanityId,
                 _initiationTime,
                 msg.sender
             )
@@ -241,94 +247,109 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== RECEIVES ==========
 
-    /** @notice Receives the soul from the foreign proxy
-     *  @param _humanID ID of the human corresponding to the soul
-     *  @param _soulId ID of the soul to update
-     *  @param _expirationTime time when the soul was last claimed
-     *  @param _soulId unique ID of the soul
+    /** @notice Receives the humanity from the foreign proxy
+     *  @param _owner ID of the human corresponding to the humanity
+     *  @param _humanityId ID of the humanity to update
+     *  @param _expirationTime time when the humanity was last claimed
+     *  @param _humanityId unique ID of the humanity
      */
     function receiveUpdate(
-        address _humanID,
-        uint160 _soulId,
+        address _owner,
+        bytes20 _humanityId,
         uint64 _expirationTime,
         bool _isActive
     ) external override allowedGateway(msg.sender) {
-        CrossChainSoul storage soul = souls[_soulId];
+        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
 
-        // Clean human soulID for past owner
-        delete humans[soul.owner];
+        // Clean human humanityId for past owner
+        delete humans[humanity.owner];
 
         if (_isActive) {
-            humans[_humanID] = _soulId;
-            soul.owner = _humanID;
-        } else delete soul.owner;
+            humans[_owner] = _humanityId;
+            humanity.owner = _owner;
+        } else delete humanity.owner;
 
-        soul.expirationTime = uint40(_expirationTime);
-        soul.isHomeChain = false;
+        humanity.expirationTime = uint40(_expirationTime);
+        humanity.isHomeChain = false;
 
-        emit UpdateReceived(_humanID, _soulId, _expirationTime);
+        emit UpdateReceived(_owner, _humanityId, _expirationTime);
     }
 
-    /** @notice Receives the transfered soul from the foreign proxy
-     *  @param _humanID ID of the human corresponding to the soul
-     *  @param _soulId ID of the soul
-     *  @param _expirationTime time when the soul was last claimed
+    /** @notice Receives the transfered humanity from the foreign proxy
+     *  @param _owner ID of the human corresponding to the humanity
+     *  @param _humanityId ID of the humanity
+     *  @param _expirationTime time when the humanity was last claimed
      *  @param _transferHash hash of the transfer.
      */
     function receiveTransfer(
-        address _humanID,
-        uint160 _soulId,
+        address _owner,
+        bytes20 _humanityId,
         uint64 _expirationTime,
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
-        // Requires no status or phase for the soul and human respectively
-        bool success = proofOfHumanity.grantSoulManually(_soulId, _humanID, _expirationTime);
+        // Requires no status or phase for the humanity and human respectively
+        bool success = proofOfHumanity.grantManually(_humanityId, _owner, _expirationTime);
 
-        CrossChainSoul storage soul = souls[_soulId];
+        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
 
-        // Clean human soulID for past owner
-        delete humans[soul.owner];
+        // Clean human humanityId for past owner
+        delete humans[humanity.owner];
 
         if (success) {
-            humans[_humanID] = _soulId;
+            humans[_owner] = _humanityId;
 
-            soul.owner = _humanID;
-            soul.expirationTime = uint40(_expirationTime);
-            soul.isHomeChain = true;
-            soul.lastTransferTime = uint40(block.timestamp);
+            humanity.owner = _owner;
+            humanity.expirationTime = uint40(_expirationTime);
+            humanity.isHomeChain = true;
+            humanity.lastTransferTime = uint40(block.timestamp);
         }
 
         receivedTransferHashes[_transferHash] = true;
 
-        emit TransferReceived(_humanID);
+        emit TransferReceived(_owner);
     }
 
+    /** @notice Receives a transfer reversion from the foreign proxy
+     *  @param _humanityId ID of the humanity to revert transfer of
+     *  @param _initiationTime Timestamp when the transfer was initiatiated
+     *  @param _initiator Initiator of the reversion (should be owner of humanity)
+     */
     function receiveTransferReversion(
-        uint160 _soulID,
+        bytes20 _humanityId,
         uint64 _initiationTime,
         address _initiator
     ) external override allowedGateway(msg.sender) {
-        Transfer memory transfer = transfers[_soulID];
+        Transfer memory transfer = transfers[_humanityId];
         bytes32 revertedTransferHash = keccak256(
-            abi.encodePacked(_soulID, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
+            abi.encodePacked(_humanityId, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
         );
 
         require(transfer.transferHash == revertedTransferHash);
-        require(transfer.soulExpirationTime > block.timestamp);
-        require(souls[_soulID].owner == _initiator);
+        require(transfer.humanityExpirationTime > block.timestamp);
+        require(humanityMapping[_humanityId].owner == _initiator);
 
-        proofOfHumanity.grantSoulManually(_soulID, souls[_soulID].owner, transfer.soulExpirationTime);
+        proofOfHumanity.grantManually(_humanityId, humanityMapping[_humanityId].owner, transfer.humanityExpirationTime);
     }
 
     // ========== VIEWS ==========
 
-    function isRegistered(address _humanID) external view returns (bool) {
-        uint160 soulID = humans[_humanID];
-        CrossChainSoul memory soul = souls[soulID];
+    function isClaimed(bytes20 _humanityId) external view returns (bool) {
+        if (proofOfHumanity.isClaimed(_humanityId)) return true;
+
+        CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+        return humanity.owner != address(0) && humanity.expirationTime >= block.timestamp;
+    }
+
+    function isHuman(address _owner) external view returns (bool) {
+        bytes20 humanityId = humans[_owner];
+        CrossChainHumanity memory humanity = humanityMapping[humanityId];
 
         return
-            proofOfHumanity.isRegistered(_humanID) ||
-            (!soul.isHomeChain && soulID != 0 && soul.owner == _humanID && soul.expirationTime > block.timestamp);
+            proofOfHumanity.isHuman(_owner) ||
+            (!humanity.isHomeChain &&
+                humanityId != 0 &&
+                humanity.owner == _owner &&
+                humanity.expirationTime > block.timestamp);
     }
 }
