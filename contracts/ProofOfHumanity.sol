@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.14;
+pragma solidity 0.8.16;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
@@ -214,11 +214,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     event RequestBaseDepositChanged(uint256 requestBaseDeposit);
     event DurationsChanged(uint64 humanityLifespan, uint64 renewalPeriodDuration, uint64 challengePeriodDuration);
     event RequiredNumberOfVouchesChanged(uint64 requiredNumberOfVouches);
-    event StakeMultipliersChanged(
-        uint256 sharedStakeMultiplier,
-        uint256 winnerStakeMultiplier,
-        uint256 loserStakeMultiplier
-    );
+    event StakeMultipliersChanged(uint256 sharedMultiplier, uint256 winnerMultiplier, uint256 loserMultiplier);
     event CrossChainProxyChanged(address crossChainProofOfHumanity);
     event ArbitratorChanged(IArbitrator arbitrator, bytes arbitratorExtraData);
     event HumanityGrantedManually(bytes20 indexed humanityId, address indexed owner, uint64 expirationTime);
@@ -235,15 +231,14 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     event VouchAdded(address indexed voucher, address indexed vouched, bytes20 humanityId);
     event VouchRemoved(address indexed voucher, address indexed vouched, bytes20 humanityId);
     event RequestWithdrawn(bytes20 humanityId, uint256 requestId);
-    event RequestContribution(address claimer, uint256 amount);
+    event RequestContribution(address claimer);
     event StateAdvanced(address claimer);
     event RequestChallenged(bytes20 humanityId, uint256 requestId, uint256 challengeId, Reason reason, string evidence);
     event RequestExecuted(bytes20 humanityId, uint256 requestId);
     event VouchesProcessed(bytes20 humanityId, uint256 requestId, uint256 endIndex);
     event ChallengePeriodRestart(bytes20 humanityId, uint256 requestId, uint256 challengeId);
-    event EvidenceAppended(bytes20 humanityId, uint256 requestId, string evidence);
     event AppealCreated(IArbitrator arbitrator, uint256 disputeId);
-    event AppealContribution(IArbitrator arbitrator, uint256 disputeId, Party side, uint256 amount);
+    event AppealContribution(IArbitrator arbitrator, uint256 disputeId, Party side);
     event FeesAndRewardsWithdrawn(
         address beneficiary,
         bytes20 humanityId,
@@ -636,7 +631,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataId];
         uint256 totalCost = _arbitrationCost(arbitratorData) + requestBaseDeposit;
 
-        emit RequestContribution(_claimer, msg.value);
+        emit RequestContribution(_claimer);
 
         _contribute(round, Party.Requester, totalCost);
     }
@@ -801,7 +796,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
         require(humanity.pendingRevocation == (_reason == Reason.None));
 
-        Request storage request = humanityMapping[_humanityId].requests[_requestId];
+        Request storage request = humanity.requests[_requestId];
         require(request.status == Status.Resolving);
         require(request.challengePeriodEnd >= uint64(block.timestamp));
 
@@ -907,7 +902,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Party firstFunded = round.sideFunded;
         require(_side != firstFunded);
 
-        emit AppealContribution(arbitratorData.arbitrator, challenge.disputeId, _side, msg.value);
+        emit AppealContribution(arbitratorData.arbitrator, challenge.disputeId, _side);
 
         uint256 appealCost = arbitratorData.arbitrator.appealCost(
             challenge.disputeId,
@@ -1175,7 +1170,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 _requestId,
         string calldata _evidence
     ) external {
-        emit EvidenceAppended(_humanityId, _requestId, _evidence);
         emit Evidence(
             arbitratorDataList[humanityMapping[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
             _requestId + uint256(uint160(_humanityId)),
