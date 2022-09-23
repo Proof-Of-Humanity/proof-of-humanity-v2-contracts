@@ -20,9 +20,9 @@ interface ICrossChainProofOfHumanity {
 
     event TransferReceived(address _owner);
 
-    function receiveTransferReversion(
-        bytes20 _humanityId,
-        uint64 _initiationTime,
-        address _initiator
-    ) external;
+    // function receiveTransferReversion(
+    //     bytes20 _humanityId,
+    //     uint64 _initiationTime,
+    //     address _initiator
+    // ) external;
 }

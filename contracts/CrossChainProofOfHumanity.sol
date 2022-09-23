@@ -217,33 +217,33 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         );
     }
 
-    /** @notice Revert a (supposedly) failed transfer
-     *  @param _humanityId ID of the humanity to revert transfer of
-     *  @param _initiationTime Timestamp when the transfer was initiatiated
-     *  @param _bridgeGateway address of the bridge gateway to use
-     */
-    function revertTransfer(
-        bytes20 _humanityId,
-        uint64 _initiationTime,
-        address _bridgeGateway
-    ) external allowedGateway(_bridgeGateway) {
-        bytes32 revertedTransferHash = keccak256(
-            abi.encodePacked(_humanityId, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
-        );
+    // /** @notice Revert a (supposedly) failed transfer
+    //  *  @param _humanityId ID of the humanity to revert transfer of
+    //  *  @param _initiationTime Timestamp when the transfer was initiatiated
+    //  *  @param _bridgeGateway address of the bridge gateway to use
+    //  */
+    // function revertTransfer(
+    //     bytes20 _humanityId,
+    //     uint64 _initiationTime,
+    //     address _bridgeGateway
+    // ) external allowedGateway(_bridgeGateway) {
+    //     bytes32 revertedTransferHash = keccak256(
+    //         abi.encodePacked(_humanityId, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
+    //     );
 
-        require(!receivedTransferHashes[revertedTransferHash]);
+    //     require(!receivedTransferHashes[revertedTransferHash]);
 
-        receivedTransferHashes[revertedTransferHash] = true;
+    //     receivedTransferHashes[revertedTransferHash] = true;
 
-        IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(
-                ICrossChainProofOfHumanity.receiveTransferReversion.selector,
-                _humanityId,
-                _initiationTime,
-                msg.sender
-            )
-        );
-    }
+    //     IBridgeGateway(_bridgeGateway).sendMessage(
+    //         abi.encodeWithSelector(
+    //             ICrossChainProofOfHumanity.receiveTransferReversion.selector,
+    //             _humanityId,
+    //             _initiationTime,
+    //             msg.sender
+    //         )
+    //     );
+    // }
 
     // ========== RECEIVES ==========
 
@@ -310,27 +310,27 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         emit TransferReceived(_owner);
     }
 
-    /** @notice Receives a transfer reversion from the foreign proxy
-     *  @param _humanityId ID of the humanity to revert transfer of
-     *  @param _initiationTime Timestamp when the transfer was initiatiated
-     *  @param _initiator Initiator of the reversion (should be owner of humanity)
-     */
-    function receiveTransferReversion(
-        bytes20 _humanityId,
-        uint64 _initiationTime,
-        address _initiator
-    ) external override allowedGateway(msg.sender) {
-        Transfer memory transfer = transfers[_humanityId];
-        bytes32 revertedTransferHash = keccak256(
-            abi.encodePacked(_humanityId, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
-        );
+    // /** @notice Receives a transfer reversion from the foreign proxy
+    //  *  @param _humanityId ID of the humanity to revert transfer of
+    //  *  @param _initiationTime Timestamp when the transfer was initiatiated
+    //  *  @param _initiator Initiator of the reversion (should be owner of humanity)
+    //  */
+    // function receiveTransferReversion(
+    //     bytes20 _humanityId,
+    //     uint64 _initiationTime,
+    //     address _initiator
+    // ) external override allowedGateway(msg.sender) {
+    //     Transfer memory transfer = transfers[_humanityId];
+    //     bytes32 revertedTransferHash = keccak256(
+    //         abi.encodePacked(_humanityId, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
+    //     );
 
-        require(transfer.transferHash == revertedTransferHash);
-        require(transfer.humanityExpirationTime > block.timestamp);
-        require(humanityMapping[_humanityId].owner == _initiator);
+    //     require(transfer.transferHash == revertedTransferHash);
+    //     require(transfer.humanityExpirationTime > block.timestamp);
+    //     require(humanityMapping[_humanityId].owner == _initiator);
 
-        proofOfHumanity.grantManually(_humanityId, humanityMapping[_humanityId].owner, transfer.humanityExpirationTime);
-    }
+    //     proofOfHumanity.grantManually(_humanityId, humanityMapping[_humanityId].owner, transfer.humanityExpirationTime);
+    // }
 
     // ========== VIEWS ==========
 
