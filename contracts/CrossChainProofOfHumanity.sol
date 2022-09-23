@@ -201,9 +201,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function retryFailedTransfer(bytes20 _humanityId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         (, , , uint64 expirationTime, , ) = proofOfHumanity.getHumanityInfo(_humanityId);
 
+        require(bridgeGateways[_bridgeGateway].approved, "Bridge gateway not supported");
+
         CrossChainHumanity memory humanity = humanityMapping[_humanityId];
         Transfer memory transfer = transfers[_humanityId];
-        require(bridgeGateways[_bridgeGateway].approved, "Bridge gateway not supported");
+        require(transfer.transferHash != 0, "No transfer was initiated");
         require(expirationTime == transfer.humanityExpirationTime, "Humanity time mismatch");
 
         IBridgeGateway(_bridgeGateway).sendMessage(
