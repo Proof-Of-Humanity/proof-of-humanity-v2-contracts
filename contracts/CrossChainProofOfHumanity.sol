@@ -205,6 +205,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         CrossChainHumanity memory humanity = humanityMapping[_humanityId];
         Transfer memory transfer = transfers[_humanityId];
+        require(
+            bridgeGateways[_bridgeGateway].foreignProxy == transfer.foreignProxy,
+            "Bridge gateway corresponds to wrong foreign proxy"
+        );
         require(transfer.transferHash != 0, "No transfer was initiated");
         require(expirationTime == transfer.humanityExpirationTime, "Humanity time mismatch");
 
