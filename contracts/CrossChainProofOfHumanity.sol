@@ -19,7 +19,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         uint64 humanityExpirationTime; // expirationTime at the moment of transfer
         bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, chainID, nonce)
         address foreignProxy; // address of the foreign proxy
-        uint64 initiationTime; // time the transfer was initiated
     }
 
     struct CrossChainHumanity {
@@ -180,7 +179,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         );
         transfer.humanityId = humanityId;
         transfer.humanityExpirationTime = expirationTime;
-        transfer.initiationTime = uint64(block.timestamp);
         transfer.foreignProxy = bridgeGateways[_bridgeGateway].foreignProxy;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
