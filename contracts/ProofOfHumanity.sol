@@ -13,6 +13,7 @@ import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
+import {SafeSend} from "./libraries/SafeSend.sol";
 
 /** @title ProofOfHumanity
  *  This contract is a curated registry for people. The users are identified by their address and can be added or removed through the request-challenge protocol.
@@ -23,6 +24,8 @@ import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
  *  The arbitrator must support appeal period.
  */
 contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
+    using SafeSend for address payable;
+
     /// ====== CONSTANTS ====== ///
 
     /// @notice The amount of non 0 choices the arbitrator can give.
@@ -1069,7 +1072,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         beneficiaryContributions.forRequester = 0;
         beneficiaryContributions.forChallenger = 0;
-        _beneficiary.send(reward);
+        _beneficiary.safeSend(reward);
 
         emit FeesAndRewardsWithdrawn(_beneficiary, _humanityId, _requestId, _challengeId, _round);
     }
@@ -1251,7 +1254,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         }
         _round.feeRewards += contribution;
 
-        if (remainingETH != 0) payable(msg.sender).send(remainingETH);
+        if (remainingETH != 0) payable(msg.sender).safeSend(remainingETH);
     }
 
     /// ====== GETTERS ====== ///
