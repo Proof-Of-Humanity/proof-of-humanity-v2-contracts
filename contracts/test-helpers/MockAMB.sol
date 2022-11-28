@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.16;
 
-import "../interfaces/IAMB.sol";
+import "../bridge-gateways/IAMB.sol";
 
 contract MockAMB is IAMB {
     uint256 private currentMessageId;
@@ -30,9 +30,5 @@ contract MockAMB is IAMB {
 
     function messageSender() external view override returns (address) {
         return currentMessageSender;
-    }
-
-    function messageSourceChainId() external view override returns (bytes32) {
-        return bytes32(block.chainid);
     }
 }

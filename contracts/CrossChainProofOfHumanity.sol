@@ -7,7 +7,7 @@
  */
 pragma solidity 0.8.16;
 
-import {IBridgeGateway} from "./interfaces/IBridgeGateway.sol";
+import {IBridgeGateway} from "./bridge-gateways/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 import {ICrossChainProofOfHumanity} from "./interfaces/ICrossChainProofOfHumanity.sol";
 
@@ -64,7 +64,30 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== EVENTS ==========
 
-    event GatewayUpdated(address indexed _bridgeGateway, bool _active);
+    event GatewayAdded(address indexed bridgeGateway, address foreignProxy);
+    event GatewayRemoved(address indexed bridgeGateway);
+    event UpdateInitiated(
+        bytes20 indexed humanityId,
+        address indexed owner,
+        uint160 expirationTime,
+        address gateway,
+        bool claimed
+    );
+    event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint160 expirationTime, bool claimed);
+    event TransferInitiated(
+        bytes20 indexed humanityId,
+        address indexed owner,
+        uint160 expirationTime,
+        address gateway,
+        bytes32 transferHash
+    );
+    event TransferRetry(bytes32 transferHash);
+    event TransferReceived(
+        bytes20 indexed humanityId,
+        address indexed owner,
+        uint160 expirationTime,
+        bytes32 transferHash
+    );
 
     // ========== MODIFIERS ==========
 
@@ -119,17 +142,17 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         transferCooldown = _transferCooldown;
     }
 
-    function addBridgeGateway(address _bridgeGateway, address foreignProxy) external onlyGovernor {
+    function addBridgeGateway(address _bridgeGateway, address _foreignProxy) external onlyGovernor {
         require(_bridgeGateway != address(0));
         require(!bridgeGateways[_bridgeGateway].approved);
-        bridgeGateways[_bridgeGateway] = GatewayInfo(foreignProxy, true);
-        emit GatewayUpdated(_bridgeGateway, true);
+        bridgeGateways[_bridgeGateway] = GatewayInfo(_foreignProxy, true);
+        emit GatewayAdded(_bridgeGateway, _foreignProxy);
     }
 
     function removeBridgeGateway(address _bridgeGateway) external onlyGovernor {
         require(bridgeGateways[_bridgeGateway].approved);
         delete bridgeGateways[_bridgeGateway];
-        emit GatewayUpdated(_bridgeGateway, false);
+        emit GatewayRemoved(_bridgeGateway);
     }
 
     // ========== REQUESTS ==========
@@ -155,6 +178,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
                 humanityClaimed
             )
         );
+
+        emit UpdateInitiated(_humanityId, owner, expirationTime, _bridgeGateway, humanityClaimed);
     }
 
     /** @notice Execute transfering the humanity to the foreign chain
@@ -174,9 +199,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         humans[msg.sender] = humanityId;
 
         Transfer storage transfer = transfers[humanityId];
-        transfer.transferHash = keccak256(
+
+        bytes32 tHash = keccak256(
             abi.encodePacked(humanityId, block.timestamp, address(this), bridgeGateways[_bridgeGateway].foreignProxy)
         );
+        transfer.transferHash = tHash;
         transfer.humanityId = humanityId;
         transfer.humanityExpirationTime = expirationTime;
         transfer.foreignProxy = bridgeGateways[_bridgeGateway].foreignProxy;
@@ -187,9 +214,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
                 msg.sender,
                 humanityId,
                 expirationTime,
-                transfer.transferHash
+                tHash
             )
         );
+
+        emit TransferInitiated(humanityId, msg.sender, expirationTime, _bridgeGateway, tHash);
     }
 
     /** @notice Retry a failed transfer
@@ -219,35 +248,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
                 transfer.transferHash
             )
         );
+
+        emit TransferRetry(transfer.transferHash);
     }
-
-    // /** @notice Revert a (supposedly) failed transfer
-    //  *  @param _humanityId ID of the humanity to revert transfer of
-    //  *  @param _initiationTime Timestamp when the transfer was initiatiated
-    //  *  @param _bridgeGateway address of the bridge gateway to use
-    //  */
-    // function revertTransfer(
-    //     bytes20 _humanityId,
-    //     uint64 _initiationTime,
-    //     address _bridgeGateway
-    // ) external allowedGateway(_bridgeGateway) {
-    //     bytes32 revertedTransferHash = keccak256(
-    //         abi.encodePacked(_humanityId, _initiationTime, bridgeGateways[_bridgeGateway].foreignProxy, address(this))
-    //     );
-
-    //     require(!receivedTransferHashes[revertedTransferHash]);
-
-    //     receivedTransferHashes[revertedTransferHash] = true;
-
-    //     IBridgeGateway(_bridgeGateway).sendMessage(
-    //         abi.encodeWithSelector(
-    //             ICrossChainProofOfHumanity.receiveTransferReversion.selector,
-    //             _humanityId,
-    //             _initiationTime,
-    //             msg.sender
-    //         )
-    //     );
-    // }
 
     // ========== RECEIVES ==========
 
@@ -276,7 +279,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         humanity.expirationTime = uint40(_expirationTime);
         humanity.isHomeChain = false;
 
-        emit UpdateReceived(_owner, _humanityId, _expirationTime);
+        emit UpdateReceived(_humanityId, _owner, _expirationTime, _isActive);
     }
 
     /** @notice Receives the transfered humanity from the foreign proxy
@@ -311,30 +314,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         receivedTransferHashes[_transferHash] = true;
 
-        emit TransferReceived(_owner);
+        emit TransferReceived(_humanityId, _owner, _expirationTime, _transferHash);
     }
-
-    // /** @notice Receives a transfer reversion from the foreign proxy
-    //  *  @param _humanityId ID of the humanity to revert transfer of
-    //  *  @param _initiationTime Timestamp when the transfer was initiatiated
-    //  *  @param _initiator Initiator of the reversion (should be owner of humanity)
-    //  */
-    // function receiveTransferReversion(
-    //     bytes20 _humanityId,
-    //     uint64 _initiationTime,
-    //     address _initiator
-    // ) external override allowedGateway(msg.sender) {
-    //     Transfer memory transfer = transfers[_humanityId];
-    //     bytes32 revertedTransferHash = keccak256(
-    //         abi.encodePacked(_humanityId, _initiationTime, address(this), bridgeGateways[msg.sender].foreignProxy)
-    //     );
-
-    //     require(transfer.transferHash == revertedTransferHash);
-    //     require(transfer.humanityExpirationTime > block.timestamp);
-    //     require(humanityMapping[_humanityId].owner == _initiator);
-
-    //     proofOfHumanity.grantManually(_humanityId, humanityMapping[_humanityId].owner, transfer.humanityExpirationTime);
-    // }
 
     // ========== VIEWS ==========
 

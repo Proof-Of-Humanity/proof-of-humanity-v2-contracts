@@ -6,7 +6,6 @@ pragma solidity 0.8.16;
  */
 interface IAMB {
     /**
-     * @notice Sets the address of the arbitration proxy on the Foreign Chain
      * @param _contract The address of the contract on the other network
      * @param _data Encoded bytes of the method selector and the parameters that will be called in the contract on the other network
      * @param _gas Gas to be provided in execution of the method call in the contract on the other chain
@@ -20,6 +19,4 @@ interface IAMB {
     function maxGasPerTx() external view returns (uint256);
 
     function messageSender() external view returns (address);
-
-    function messageSourceChainId() external view returns (bytes32);
 }
