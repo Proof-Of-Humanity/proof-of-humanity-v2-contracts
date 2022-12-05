@@ -188,7 +188,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     mapping(bytes20 => Humanity) private humanityMapping;
 
     /// @notice Maps the address to human's humanityId. humans[address].
-    mapping(address => bytes20) public humans;
+    mapping(address => bytes20) private humans;
 
     /// @notice Indicates whether or not the voucher has vouched for a certain human. vouches[voucherId][vouchedHumanId][humanityId].
     mapping(address => mapping(address => mapping(bytes20 => bool))) public vouches;
@@ -319,26 +319,26 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Humanity must not be claimed.
      *
      *  @param _humanityId Unique id to be added.
-     *  @param _owner Address owner corresponding to the humanity.
+     *  @param _account Address owner corresponding to the humanity.
      *  @param _expirationTime Expiration time of the newly added humanity.
      *  @return success Whether the humanity was successfully granted.
      */
     function grantManually(
         bytes20 _humanityId,
-        address _owner,
+        address _account,
         uint64 _expirationTime
     ) external override onlyCrossChain returns (bool success) {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         if (_humanityClaimed(humanity)) return false;
 
-        require(_noOngoingClaim(_owner));
+        require(_noOngoingClaim(_account));
 
-        humanity.owner = _owner;
+        humanity.owner = _account;
         humanity.expirationTime = _expirationTime;
-        humans[_owner] = _humanityId;
+        humans[_account] = _humanityId;
 
-        emit HumanityGrantedManually(_humanityId, _owner, _expirationTime);
+        emit HumanityGrantedManually(_humanityId, _account, _expirationTime);
 
         return true;
     }
@@ -349,34 +349,34 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @dev Requirements:
      *  - HumanityId must be claimed by someone.
-     *  - Owner of the humanity must be _humanAddress.
+     *  - Owner of the humanity must be _account.
      *  - Humanity must have no pending requests.
      *  - Humanity must not be vouching at the moment.
      *
-     *  @param _humanAddress Human corresponding to the humanity to be revoked.
+     *  @param _account Human corresponding to the humanity to be revoked.
      *  @return expirationTime Expiration time of the revoked humanity.
      *  @return humanityId Unique id corresponding to the revoked humanity.
      */
-    function revokeManually(address _humanAddress)
+    function revokeManually(address _account)
         external
         override
         onlyCrossChain
         returns (uint64 expirationTime, bytes20 humanityId)
     {
-        humanityId = humans[_humanAddress];
+        humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
 
         require(_humanityClaimed(humanity));
-        require(humanity.owner == _humanAddress);
+        require(humanity.owner == _account);
         require(humanity.nbPendingRequests == 0);
         require(!humanity.vouching);
 
         expirationTime = humanity.expirationTime;
 
         delete humanity.owner;
-        delete humans[_humanAddress];
+        delete humans[_account];
 
-        emit HumanityRevokedManually(_humanAddress);
+        emit HumanityRevokedManually(_account);
     }
 
     /** @notice Change the governor of the contract.
@@ -650,24 +650,24 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @dev Emits {VouchAdded} event.
      *
-     *  @param _human The address of the human.
+     *  @param _account The address of the human.
      *  @param _humanityId The humanity id the vouch specifies human corresponds to.
      */
-    function addVouch(address _human, bytes20 _humanityId) external {
-        vouches[msg.sender][_human][_humanityId] = true;
-        emit VouchAdded(msg.sender, _human, _humanityId);
+    function addVouch(address _account, bytes20 _humanityId) external {
+        vouches[msg.sender][_account][_humanityId] = true;
+        emit VouchAdded(msg.sender, _account, _humanityId);
     }
 
     /** @notice Remove a previously added vouch. Note that the event spam is not an issue as it will be handled by the UI.
      *
      *  @dev Emits {VouchRemoved} event.
      *
-     *  @param _human The address of the human.
+     *  @param _account The address of the human.
      *  @param _humanityId The humanity id the vouch specifies human corresponds to.
      */
-    function removeVouch(address _human, bytes20 _humanityId) external {
-        vouches[msg.sender][_human][_humanityId] = false;
-        emit VouchRemoved(msg.sender, _human, _humanityId);
+    function removeVouch(address _account, bytes20 _humanityId) external {
+        vouches[msg.sender][_account][_humanityId] = false;
+        emit VouchRemoved(msg.sender, _account, _humanityId);
     }
 
     /** @notice Allow to withdraw a mistakenly added request while it's still in a vouching state.
@@ -1292,11 +1292,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Check whether human has ongoing claim for humanity.
-     *  @param _human Address of human to check.
+     *  @param _account Address of human to check.
      *  @return Whether human has ongoing claim.
      */
-    function _noOngoingClaim(address _human) internal view returns (bool) {
-        return humanityMapping[humans[_human]].claimers[_human] == 0;
+    function _noOngoingClaim(address _account) internal view returns (bool) {
+        return humanityMapping[humans[_account]].claimers[_account] == 0;
     }
 
     /** @notice Check whether humanity is claimed:
@@ -1307,7 +1307,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return Whether humanity is claimed.
      */
     function _humanityClaimed(Humanity storage _humanity) internal view returns (bool) {
-        return _humanity.owner != address(0) && _humanity.expirationTime >= block.timestamp;
+        return _humanity.owner != address(0x0) && _humanity.expirationTime >= block.timestamp;
     }
 
     /** @notice Check whether id corresponds to a claimed humanity.
@@ -1319,12 +1319,31 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Return true if the human has a claimed humanity.
-     *  @param _humanAddress The address of the human.
+     *  @param _account The address of the human.
      *  @return Whether the human has a valid humanity.
      */
-    function isHuman(address _humanAddress) public view override returns (bool) {
-        Humanity storage humanity = humanityMapping[humans[_humanAddress]];
-        return humanity.owner == _humanAddress && humanity.expirationTime >= block.timestamp;
+    function isHuman(address _account) public view override returns (bool) {
+        Humanity storage humanity = humanityMapping[humans[_account]];
+        return humanity.owner == _account && humanity.expirationTime >= block.timestamp;
+    }
+
+    /** @notice Get the owner of a humanity.
+     *  @param _humanityId The id of the humanity.
+     *  @return account The owner of the humanity.
+     */
+    function boundTo(bytes20 _humanityId) external view returns (address account) {
+        Humanity storage humanity = humanityMapping[_humanityId];
+        if (_humanityClaimed(humanity)) account = humanity.owner;
+    }
+
+    /** @notice Get the humanity corresponding to an address. Returns zero address if it corresponds to no humanity.
+     *  @param _account The address to get the correspding humanity of.
+     *  @return humanityId The humanity corresponding to the address.
+     */
+    function humanityOf(address _account) external view returns (bytes20 humanityId) {
+        humanityId = humans[_account];
+        Humanity storage humanity = humanityMapping[humanityId];
+        if (humanity.owner != _account || humanity.expirationTime < block.timestamp) humanityId = bytes20(0);
     }
 
     /** @notice Get the number of times the arbitrator data was updated.
