@@ -1,14 +1,12 @@
 /**
- * @authors: []
+ * @authors: [@andreimvp]
  * @reviewers: []
  * @auditors: []
  * @bounties: []
  * SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.16;
-
-// import {WethLike} from "../interfaces/WethLike.sol";
+pragma solidity 0.8.17;
 
 interface WethLike {
     function deposit() external payable;

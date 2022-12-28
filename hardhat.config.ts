@@ -16,7 +16,7 @@ dotenv.config();
 // });
 
 const config: HardhatUserConfig = {
-  solidity: { version: "0.8.16", settings: { optimizer: { enabled: true, runs: 10000 }, viaIR: true } },
+  solidity: { version: "0.8.17", settings: { optimizer: { enabled: true, runs: 10000 }, viaIR: true } },
   networks: {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     // mainnet: { chainId: 1, url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}` },

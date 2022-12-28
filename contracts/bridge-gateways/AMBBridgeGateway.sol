@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import {IAMB} from "./IAMB.sol";
 import {IBridgeGateway} from "./IBridgeGateway.sol";

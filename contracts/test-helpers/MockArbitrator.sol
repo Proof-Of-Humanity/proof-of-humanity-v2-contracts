@@ -6,7 +6,7 @@
  *  @deployments: []
  */
 
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import {IArbitrator, IArbitrable} from "@kleros/erc-792/contracts/IArbitrator.sol";
 

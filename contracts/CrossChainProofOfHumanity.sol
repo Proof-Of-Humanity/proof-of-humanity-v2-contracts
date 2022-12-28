@@ -5,7 +5,7 @@
  *  @deployments: []
  *  SPDX-License-Identifier: MIT
  */
-pragma solidity 0.8.16;
+pragma solidity 0.8.17;
 
 import {IBridgeGateway} from "./bridge-gateways/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
@@ -295,6 +295,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
+
         // Requires no status or phase for the humanity and human respectively
         bool success = proofOfHumanity.grantManually(_humanityId, _owner, _expirationTime);
 
