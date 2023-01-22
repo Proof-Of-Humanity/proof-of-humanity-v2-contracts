@@ -1,0 +1,19 @@
+[profile.default]
+auto_detect_solc = false
+bytecode_hash = "none"
+fuzz = { runs = 256 }
+gas_reports = ["*"]
+libs = ["lib"]
+optimizer = true
+optimizer_runs = 10_000
+out = "out"
+solc = "0.8.17"
+src = "src"
+test = "test"
+via_ir = false
+constant_optimizer = false
+yul = false
+
+[profile.ci]
+fuzz = { runs = 10_000 }
+verbosity = 4
