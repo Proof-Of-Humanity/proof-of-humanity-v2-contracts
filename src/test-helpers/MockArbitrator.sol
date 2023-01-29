@@ -180,7 +180,7 @@ contract MockArbitrator is IArbitrator {
 
         if (disputes[_disputeID].status == DisputeStatus.Appealable) {
             if (block.timestamp - appealDisputes[_disputeID].rulingTime > timeOut)
-                _giveRuling(_disputeID, disputes[_disputeID].ruling);
+                _giveRuling(_disputeID, _ruling);
             else revert("Time out time has not passed yet.");
             return;
         }

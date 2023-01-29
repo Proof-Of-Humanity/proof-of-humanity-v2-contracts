@@ -105,7 +105,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     modifier allowedGateway(address _bridgeGateway) {
-        require(bridgeGateways[_bridgeGateway].approved);
+        require(bridgeGateways[_bridgeGateway].approved, "Gateway not approved");
         _;
     }
 

@@ -10,7 +10,7 @@ out = "out"
 solc = "0.8.17"
 src = "src"
 test = "test"
-via_ir = false
+via_ir = true
 constant_optimizer = false
 yul = false
 

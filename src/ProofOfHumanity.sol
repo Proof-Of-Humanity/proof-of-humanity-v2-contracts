@@ -843,22 +843,21 @@ import "forge-std/Test.sol";
         require(request.status == Status.Resolving);
         require(request.challengePeriodEnd >= uint64(block.timestamp));
 
-        {
-            if (request.currentReason != _reason) {
-                // Get the bit that corresponds with reason's index.
-                uint8 reasonBit;
-                unchecked {
-                    reasonBit = uint8(1 << (uint256(_reason) - 1));
-                }
-
-                require((reasonBit & ~request.usedReasons) == reasonBit);
-
-                // Mark the bit corresponding with reason's index as 'true', to indicate that the reason was used.
-                request.usedReasons ^= reasonBit;
-
-                request.currentReason = _reason;
+        if (request.currentReason != _reason) {
+            // Get the bit that corresponds with reason's index.
+            uint8 reasonBit;
+            unchecked {
+                reasonBit = uint8(1 << (uint256(_reason) - 1));
             }
+
+            require((reasonBit & ~request.usedReasons) == reasonBit);
+
+            // Mark the bit corresponding with reason's index as 'true', to indicate that the reason was used.
+            request.usedReasons ^= reasonBit;
+
+            request.currentReason = _reason;
         }
+
         uint256 challengeId = request.lastChallengeId++;
         Challenge storage challenge = request.challenges[challengeId];
         Round storage round = challenge.rounds[0];
@@ -894,10 +893,8 @@ import "forge-std/Test.sol";
             evidenceGroupId
         );
 
-        {
-            if (bytes(_evidence).length > 0)
-                emit Evidence(arbitratorData.arbitrator, evidenceGroupId, msg.sender, _evidence);
-        }
+        if (bytes(_evidence).length > 0)
+            emit Evidence(arbitratorData.arbitrator, evidenceGroupId, msg.sender, _evidence);
     }
 
     /** @notice Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
@@ -964,6 +961,8 @@ import "forge-std/Test.sol";
                 );
                 challenge.lastRoundId++;
                 round.feeRewards = round.feeRewards.subCap(appealCost);
+
+                console.log("=== APPEAL CREATED ===");
 
                 emit AppealCreated(arbitratorData.arbitrator, challenge.disputeId);
             }
@@ -1042,6 +1041,7 @@ import "forge-std/Test.sol";
         while (lastProcessed < endIndex) {
             Humanity storage voucherHumanity = humanityMapping[request.vouches[lastProcessed]];
             voucherHumanity.vouching = false;
+
             if (applyPenalty) {
                 // Check the situation when vouching address is in the middle of renewal process.
                 uint256 voucherRequestId = voucherHumanity.claims[voucherHumanity.owner];
@@ -1149,12 +1149,17 @@ import "forge-std/Test.sol";
         require(address(arbitratorDataList[request.arbitratorDataId].arbitrator) == msg.sender);
         require(request.status != Status.Resolved);
 
+        console.log("Ruling:", _ruling);
+        console.log("Side funded:", uint(round.sideFunded));
+
         Party resultRuling = Party(_ruling);
         // The ruling is inverted if the loser paid its fees.
         if (round.sideFunded == Party.Requester)
             // If one side paid its fees, the ruling is in its favor. Note that if the other side had also paid, an appeal would have been created.
             resultRuling = Party.Requester;
         else if (round.sideFunded == Party.Challenger) resultRuling = Party.Challenger;
+
+        console.log("Result ruling:", uint(resultRuling));
 
         // Store the rulings of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
