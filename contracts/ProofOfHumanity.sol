@@ -1153,9 +1153,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             if (resultRuling == Party.Requester) {
                 delete humanity.owner;
                 delete humans[humanity.owner];
-            }
 
-            emit HumanityRevoked(disputeData.humanityId, disputeData.requestId);
+                emit HumanityRevoked(disputeData.humanityId, disputeData.requestId);
+            }
         } else {
             // For a claim request there can be more than one dispute.
             if (resultRuling == Party.Requester) {
