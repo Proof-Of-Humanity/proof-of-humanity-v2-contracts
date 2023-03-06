@@ -1,5 +1,5 @@
 import * as dotenv from "dotenv";
-import { HardhatUserConfig, task } from "hardhat/config";
+import { extendEnvironment, HardhatUserConfig, task } from "hardhat/config";
 import "@nomiclabs/hardhat-waffle";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
@@ -10,13 +10,17 @@ import "hardhat-deploy";
 
 dotenv.config();
 
-// task("Accounts", "Prints the accounts", async (_taskArgs, hre) => {
-//   console.log(hre.getChainId());
-//   console.log(hre.getNamedAccounts());
-// });
+extendEnvironment((hre) => {
+  console.log("Hello world!");
+});
+
+task("Accounts", "Prints the accounts", async (_taskArgs, hre) => {
+  console.log(hre.getChainId());
+  console.log(hre.getNamedAccounts());
+});
 
 const config: HardhatUserConfig = {
-  solidity: { version: "0.8.17", settings: { optimizer: { enabled: true, runs: 10000 }, viaIR: true } },
+  solidity: { version: "0.8.18", settings: { optimizer: { enabled: true, runs: 2500 }, viaIR: true } },
   networks: {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     // mainnet: { chainId: 1, url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}` },

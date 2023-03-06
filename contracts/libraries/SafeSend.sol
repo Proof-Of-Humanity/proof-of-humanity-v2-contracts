@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.17;
+pragma solidity 0.8.18;
 
 interface WethLike {
     function deposit() external payable;

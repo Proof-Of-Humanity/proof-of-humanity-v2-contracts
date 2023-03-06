@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.17;
+pragma solidity 0.8.18;
 
 import {CappedMath} from "../libraries/CappedMath.sol";
 
@@ -50,26 +50,20 @@ interface IForkModule {
 
     function removalReady(address _submissionID) external view returns (bool);
 
-    function getSubmissionInfo(address _submissionID)
-        external
-        view
-        returns (
-            bool registered,
-            uint64 expirationTime,
-            bool vouching
-        );
+    function getSubmissionInfo(address _submissionID) external view returns (bool registered, uint64 expirationTime);
 }
 
-/// PoHV2 functions which interact with the old PoH contract.
-/// * -> Part of process of potential removal   |   *** -> Includes removal
-/// grantManually
-/// revokeManually ***
-/// claimHumanity
-/// revokeHumanity *
-/// advanceState   *
-/// executeRequest ***
-/// processVouches ***
-/// rule           ***
+/** PoHV2 functions which interact with the old PoH contract.
+ *  * -> Part of process of potential removal   |   *** -> Includes removal
+ *  grantManually
+ *  revokeManually ***
+ *  claimHumanity
+ *  revokeHumanity *
+ *  advanceState   *
+ *  executeRequest ***
+ *  processVouches ***
+ *  rule           ***
+ */
 
 contract ForkModule is IForkModule {
     using CappedMath for uint64;
@@ -112,6 +106,7 @@ contract ForkModule is IForkModule {
         if (registered) {
             //? && status <= OldStatus.Vouching
             removed[_submissionID] = true;
+
             return true;
         }
 
@@ -213,21 +208,12 @@ contract ForkModule is IForkModule {
         external
         view
         override
-        returns (
-            bool registered,
-            uint64 expirationTime,
-            bool vouching
-        )
+        returns (bool registered, uint64 expirationTime)
     {
-        (, uint64 submissionTime, , bool registeredOnV1, bool isVouching, ) = oldProofOfHumanity.getSubmissionInfo(
-            _submissionID
-        );
+        (, uint64 submissionTime, , bool registeredOnV1, , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
 
         expirationTime = submissionTime.addCap64(submissionDuration);
 
-        if (registeredOnV1 && expirationTime > block.timestamp) {
-            registered = true;
-            vouching = isVouching;
-        }
+        if (registeredOnV1 && expirationTime > block.timestamp) registered = true;
     }
 }
