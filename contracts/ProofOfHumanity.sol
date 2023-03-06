@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.17;
+pragma solidity 0.8.18;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
@@ -99,7 +99,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint32 lastProcessedVouch; // Stores the index of the last processed vouch in the array of vouches. It is used for partial processing of the vouches in resolved requests.
         address payable requester; // Address that made the request.
         address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged human must pay the fines to this address.
-        uint64 challengePeriodEnd; // Time until the request can be challenged.
+        uint64 challengePeriodStart; // Time until the request can be challenged.
         bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
         bytes20[] vouches; // Stores the unique Ids of humans that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeId -> Challenge.
@@ -619,7 +619,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         request.status = Status.Resolving;
         request.revocation = true;
         request.requester = payable(msg.sender);
-        request.challengePeriodEnd = uint64(block.timestamp) + challengePeriodDuration;
+        request.challengePeriodStart = uint64(block.timestamp);
 
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
@@ -736,9 +736,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[humanityId];
         uint256 requestId = humanity.claims[_claimer];
         Request storage request = humanity.requests[requestId];
-        require(request.status == Status.Vouching, "!vouching");
-        require(!_humanityClaimed(humanity), "claimed");
-        require(request.challenges[0].rounds[0].sideFunded == Party.Requester, "!funded");
+        require(request.status == Status.Vouching);
+        require(!_humanityClaimed(humanity));
+        require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
         address voucherAccount;
         Humanity storage voucherHumanity;
@@ -796,7 +796,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         humanity.nbPendingRequests++;
         request.status = Status.Resolving;
-        request.challengePeriodEnd = uint64(block.timestamp) + challengePeriodDuration;
+        request.challengePeriodStart = uint64(block.timestamp);
 
         emit StateAdvanced(_claimer);
     }
@@ -832,7 +832,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         Request storage request = humanity.requests[_requestId];
         require(request.status == Status.Resolving);
-        require(request.challengePeriodEnd >= uint64(block.timestamp));
+        require(request.challengePeriodStart + challengePeriodDuration >= uint64(block.timestamp));
 
         if (request.currentReason != _reason) {
             // Get the bit that corresponds with reason's index.
@@ -973,7 +973,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
         Request storage request = humanity.requests[_requestId];
         require(request.status == Status.Resolving);
-        require(request.challengePeriodEnd < uint64(block.timestamp));
+        require(request.challengePeriodStart + challengePeriodDuration < uint64(block.timestamp));
 
         if (request.revocation) {
             delete humanity.owner;
@@ -1170,7 +1170,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                     } else {
                         // Refresh the state of the request so it can be challenged again.
                         request.status = Status.Resolving;
-                        request.challengePeriodEnd = uint64(block.timestamp) + challengePeriodDuration;
+                        request.challengePeriodStart = uint64(block.timestamp);
                         request.currentReason = Reason.None;
 
                         emit ChallengePeriodRestart(
@@ -1430,7 +1430,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             uint8 usedReasons,
             uint16 arbitratorDataId,
             uint16 lastChallengeId,
-            uint64 challengePeriodEnd,
+            uint64 challengePeriodStart,
             address payable requester,
             address payable ultimateChallenger,
             Status status,
@@ -1443,7 +1443,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             request.usedReasons,
             request.arbitratorDataId,
             request.lastChallengeId,
-            request.challengePeriodEnd,
+            request.challengePeriodStart,
             request.requester,
             request.ultimateChallenger,
             request.status,
