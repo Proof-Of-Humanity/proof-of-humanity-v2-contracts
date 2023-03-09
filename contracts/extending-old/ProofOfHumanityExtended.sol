@@ -213,7 +213,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     modifier onlyCrossChain() {
-        require(msg.sender == crossChainProofOfHumanity || msg.sender == governor);
+        require(msg.sender == crossChainProofOfHumanity);
         _;
     }
 
