@@ -1003,6 +1003,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         } else if (!request.requesterLost) {
             humanity.owner = request.requester;
             humanity.expirationTime = uint64(block.timestamp).addCap64(humanityLifespan);
+
+            emit HumanityClaimed(_humanityId, _requestId);
         }
 
         humanity.nbPendingRequests--;
