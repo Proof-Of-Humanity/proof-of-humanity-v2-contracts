@@ -1055,7 +1055,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                     delete voucherHumanity.owner;
                 } else _getForkModule().removeFromRequest(address(voucherHumanityId));
 
-                emit HumanityRevokedManually(request.vouches[lastProcessed]);
+                emit HumanityRevokedManually(voucherHumanityId);
             }
 
             unchecked {
