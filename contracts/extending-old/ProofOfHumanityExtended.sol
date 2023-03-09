@@ -1405,10 +1405,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         )
     {
         Humanity storage humanity = humanityMapping[_humanityId];
-        bool regsteredOnV1 = false;
-        (regsteredOnV1, expirationTime) = _getForkModule().getSubmissionInfo(owner);
-        if (regsteredOnV1) owner = address(_humanityId);
-        else {
+        bool registeredOnV1 = false;
+        owner = address(_humanityId);
+        (registeredOnV1, expirationTime) = _getForkModule().getSubmissionInfo(owner);
+        if (!registeredOnV1) {
             owner = humanity.owner;
             expirationTime = humanity.expirationTime;
         }
