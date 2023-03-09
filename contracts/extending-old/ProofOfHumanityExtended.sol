@@ -350,9 +350,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     ) external override onlyCrossChain returns (bool success) {
         Humanity storage humanity = humanityMapping[_humanityId];
 
-        if (_humanityClaimed(humanity) || _getForkModule().isRegistered(_account)) return false;
+        if (
+            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+            _getForkModule().isRegistered(_account)
+        ) return false;
 
-        require(_noOngoingClaim(_account));
+        // Must not be in the process of claiming a humanity.
+        require(humanityMapping[humans[_account]].claims[_account] == 0);
 
         humanity.owner = _account;
         humanity.expirationTime = _expirationTime;
@@ -377,18 +381,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return expirationTime Expiration time of the revoked humanity.
      *  @return humanityId Unique id corresponding to the revoked humanity.
      */
-    function revokeManually(address _account)
-        external
-        override
-        onlyCrossChain
-        returns (uint64 expirationTime, bytes20 humanityId)
-    {
+    function revokeManually(
+        address _account
+    ) external override onlyCrossChain returns (uint64 expirationTime, bytes20 humanityId) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
         require(humanity.nbPendingRequests == 0);
 
-        if (_isRegisteredLocally(_account)) {
-            require(_humanityClaimed(humanity));
+        if (humanity.owner == _account && humanity.expirationTime >= block.timestamp) {
+            require(humanity.expirationTime >= block.timestamp);
             require(humanity.owner == _account);
             require(!humanity.vouching);
 
@@ -487,10 +488,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _registrationMetaEvidence The meta evidence to be used for future registration request disputes.
      *  @param _clearingMetaEvidence The meta evidence to be used for future clearing request disputes.
      */
-    function changeMetaEvidence(string calldata _registrationMetaEvidence, string calldata _clearingMetaEvidence)
-        external
-        onlyGovernor
-    {
+    function changeMetaEvidence(
+        string calldata _registrationMetaEvidence,
+        string calldata _clearingMetaEvidence
+    ) external onlyGovernor {
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
         uint96 newMetaEvidenceUpdates = arbitratorData.metaEvidenceUpdates + 1;
         arbitratorDataList.push(
@@ -558,15 +559,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _evidence Link to evidence using its URI.
      *  @param _name Name of the human (for Subgraph only and it won't be used in this function).
      */
-    function _claimHumanity(
-        bytes20 _humanityId,
-        string calldata _evidence,
-        string calldata _name
-    ) internal {
+    function _claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) internal {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         require(!isHuman(msg.sender));
-        require(!_humanityClaimed(humanity));
+        require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
 
         require(_getForkModule().hasLockedState(msg.sender));
 
@@ -579,11 +576,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         _claimHumanity(bytes20(msg.sender), _evidence, _name);
     }
 
-    function claimHumanity(
-        bytes20 _humanityId,
-        string calldata _evidence,
-        string calldata _name
-    ) external payable {
+    function claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) external payable {
         require(_humanityId != 0);
         _claimHumanity(_humanityId, _evidence, _name);
     }
@@ -631,8 +624,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function revokeHumanity(bytes20 _humanityId, string calldata _evidence) external payable {
         Humanity storage humanity = humanityMapping[_humanityId];
 
-        if (_humanityClaimed(humanity)) require(!humanity.pendingRevocation);
-        else require(_getForkModule().removalReady(address(_humanityId)));
+        require(
+            humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp
+                ? !humanity.pendingRevocation
+                : _getForkModule().removalReady(address(_humanityId))
+        );
 
         uint256 requestId = humanity.requests.length;
 
@@ -649,7 +645,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         humanity.nbPendingRequests++;
 
         ArbitratorData memory arbitratorData = arbitratorDataList[arbitratorDataId];
-        uint256 totalCost = _arbitrationCost(arbitratorData).addCap(requestBaseDeposit);
+        uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
+            requestBaseDeposit
+        );
 
         require(_contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost));
 
@@ -673,7 +671,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         require(request.status == Status.Vouching);
 
-        uint256 totalCost = _arbitrationCost(arbitratorDataList[request.arbitratorDataId]).addCap(requestBaseDeposit);
+        ArbitratorData memory arbitratorData = arbitratorDataList[request.arbitratorDataId];
+        uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
+            requestBaseDeposit
+        );
 
         _contribute(_humanityId, _requestId, 0, 0, Party.Requester, totalCost);
     }
@@ -758,7 +759,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 requestId = humanity.claims[_claimer];
         Request storage request = humanity.requests[requestId];
         require(request.status == Status.Vouching);
-        require(!_humanityClaimed(humanity));
+        require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
         require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
         address voucherAccount;
@@ -875,7 +876,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Round storage round = challenge.rounds[0];
 
         ArbitratorData memory arbitratorData = arbitratorDataList[request.arbitratorDataId];
-        uint256 arbitrationCost = _arbitrationCost(arbitratorData);
+        uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
         require(_contribute(_humanityId, _requestId, challengeId, 0, Party.Challenger, arbitrationCost));
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
 
@@ -927,12 +928,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _challengeId Index of a dispute, created for the request.
      *  @param _side Recipient of the contribution.
      */
-    function fundAppeal(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        uint256 _challengeId,
-        Party _side
-    ) external payable {
+    function fundAppeal(bytes20 _humanityId, uint256 _requestId, uint256 _challengeId, Party _side) external payable {
         require(_side != Party.None);
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         require(request.status == Status.Disputed);
@@ -997,7 +993,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.challengePeriodStart + challengePeriodDuration < uint64(block.timestamp));
 
         if (request.revocation) {
-            if (_humanityClaimed(humanity)) {
+            if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) {
                 delete humanity.owner;
                 delete humans[humanity.owner];
                 humanity.pendingRevocation = false;
@@ -1030,11 +1026,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requestId Id of request for which vouches to iterate.
      *  @param _iterations Number of iterations to go through.
      */
-    function processVouches(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        uint256 _iterations
-    ) public {
+    function processVouches(bytes20 _humanityId, uint256 _requestId, uint256 _iterations) public {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         require(request.status == Status.Resolved);
 
@@ -1053,7 +1045,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             Humanity storage voucherHumanity = humanityMapping[voucherHumanityId];
             voucherHumanity.vouching = false;
             if (applyPenalty) {
-                if (_humanityClaimed(voucherHumanity)) {
+                if (voucherHumanity.owner != address(0x0) && voucherHumanity.expirationTime >= block.timestamp) {
                     // Check the situation when vouching address is in the middle of renewal process.
                     uint256 voucherRequestId = voucherHumanity.claims[voucherHumanity.owner];
                     if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].requesterLost = true;
@@ -1175,7 +1167,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             humanity.pendingRevocation = false;
 
             if (resultRuling == Party.Requester) {
-                if (_humanityClaimed(humanity)) {
+                if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) {
                     delete humanity.owner;
                     delete humans[humanity.owner];
                 } else _getForkModule().removeFromRequest(address(disputeData.humanityId));
@@ -1234,11 +1226,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requestId Id of request the evidence is related to.
      *  @param _evidence A link to an evidence using its URI.
      */
-    function submitEvidence(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        string calldata _evidence
-    ) external {
+    function submitEvidence(bytes20 _humanityId, uint256 _requestId, string calldata _evidence) external {
         emit Evidence(
             arbitratorDataList[humanityMapping[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
             _requestId + uint256(uint160(_humanityId)),
@@ -1262,7 +1250,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function _requestHumanity(bytes20 _humanityId, string calldata _evidence) internal returns (uint256 requestId) {
         // Human must not be in the process of claiming a humanity.
-        require(_noOngoingClaim(msg.sender));
+        require(humanityMapping[humans[msg.sender]].claims[msg.sender] == 0);
 
         Humanity storage humanity = humanityMapping[_humanityId];
 
@@ -1277,16 +1265,14 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         humanity.claims[msg.sender] = requestId;
         humans[msg.sender] = _humanityId;
 
-        uint256 totalCost = _arbitrationCost(arbitratorDataList[arbitratorDataId]).addCap(requestBaseDeposit);
+        ArbitratorData memory arbitratorData = arbitratorDataList[arbitratorDataId];
+        uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
+            requestBaseDeposit
+        );
         _contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost);
 
         if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorDataList[arbitratorDataId].arbitrator,
-                requestId + uint256(uint160(_humanityId)),
-                msg.sender,
-                _evidence
-            );
+            emit Evidence(arbitratorData.arbitrator, requestId + uint256(uint160(_humanityId)), msg.sender, _evidence);
     }
 
     /** @notice Make a fee contribution.
@@ -1339,31 +1325,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GETTERS ====== ///
 
-    /** @notice Return the arbitration cost for the arbitratorData.
-     *  @param _arbitratorData ArbitratorData from storage to get the arbitration cost for.
-     *  @return cost of arbitration.
-     */
-    function _arbitrationCost(ArbitratorData memory _arbitratorData) internal view returns (uint256) {
-        return _arbitratorData.arbitrator.arbitrationCost(_arbitratorData.arbitratorExtraData);
-    }
-
-    /** @notice Check whether human has ongoing claim for humanity.
-     *  @param _account Address of human to check.
-     *  @return Whether human has ongoing claim.
-     */
-    function _noOngoingClaim(address _account) internal view returns (bool) {
-        return humanityMapping[humans[_account]].claims[_account] == 0;
-    }
-
-    /** @notice Check whether humanity is claimed:
-     *  - Owner must not be null address.
-     *  - Humanity must not have expired.
-     *
-     *  @param _humanity Humanity struct from storage to check.
-     *  @return Whether humanity is claimed.
-     */
-    function _humanityClaimed(Humanity storage _humanity) internal view returns (bool) {
-        return _humanity.owner != address(0x0) && _humanity.expirationTime >= block.timestamp;
+    function _getForkModule() internal view returns (IForkModule oldPoH) {
+        assembly {
+            oldPoH := sload(_FORK_MODULE_SLOT)
+        }
     }
 
     /** @notice Check whether id corresponds to a claimed humanity.
@@ -1371,18 +1336,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return Whether humanity is claimed.
      */
     function isClaimed(bytes20 _humanityId) external view override returns (bool) {
-        return _humanityClaimed(humanityMapping[_humanityId]) || _getForkModule().isRegistered(address(_humanityId));
-    }
-
-    function _isRegisteredLocally(address _account) internal view returns (bool) {
-        Humanity storage humanity = humanityMapping[humans[_account]];
-        return humanity.owner == _account && humanity.expirationTime >= block.timestamp;
-    }
-
-    function _getForkModule() internal view returns (IForkModule oldPoH) {
-        assembly {
-            oldPoH := sload(_FORK_MODULE_SLOT)
-        }
+        Humanity storage humanity = humanityMapping[_humanityId];
+        return
+            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+            _getForkModule().isRegistered(address(_humanityId));
     }
 
     /** @notice Return true if the human has a claimed humanity.
@@ -1390,7 +1347,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return Whether the human has a valid humanity.
      */
     function isHuman(address _account) public view override returns (bool) {
-        return _isRegisteredLocally(_account) || _getForkModule().isRegistered(_account);
+        Humanity storage humanity = humanityMapping[humans[_account]];
+        return
+            (humanity.owner == _account && humanity.expirationTime >= block.timestamp) ||
+            _getForkModule().isRegistered(_account);
     }
 
     /** @notice Get the owner of a humanity.
@@ -1399,7 +1359,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function boundTo(bytes20 _humanityId) external view returns (address) {
         Humanity storage humanity = humanityMapping[_humanityId];
-        if (_humanityClaimed(humanity)) return humanity.owner;
+        if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) return humanity.owner;
         if (_getForkModule().isRegistered(address(_humanityId))) return address(_humanityId);
         return address(0x0);
     }
@@ -1411,7 +1371,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function humanityOf(address _account) public view returns (bytes20 humanityId) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
-        if (humanity.owner != _account || humanity.expirationTime < block.timestamp) {
+        if (humanity.owner != _account || block.timestamp > humanity.expirationTime) {
             if (_getForkModule().isRegistered(_account)) humanityId = bytes20(_account);
             else humanityId = bytes20(0x0);
         }
@@ -1427,7 +1387,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /** @notice Get info about the humanity.
      *  @param _humanityId The ID of the humanity to get info about.
      */
-    function getHumanityInfo(bytes20 _humanityId)
+    function getHumanityInfo(
+        bytes20 _humanityId
+    )
         external
         view
         override
@@ -1465,7 +1427,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _humanityId The address of the humanity.
      *  @param _requestId The request
      */
-    function getRequestInfo(bytes20 _humanityId, uint256 _requestId)
+    function getRequestInfo(
+        bytes20 _humanityId,
+        uint256 _requestId
+    )
         external
         view
         returns (
@@ -1507,16 +1472,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         bytes20 _humanityId,
         uint256 _requestId,
         uint256 _challengeId
-    )
-        external
-        view
-        returns (
-            uint16 lastRoundId,
-            address challenger,
-            uint256 disputeId,
-            Party ruling
-        )
-    {
+    ) external view returns (uint16 lastRoundId, address challenger, uint256 disputeId, Party ruling) {
         Challenge storage challenge = humanityMapping[_humanityId].requests[_requestId].challenges[_challengeId];
         return (challenge.lastRoundId, challenge.challenger, challenge.disputeId, challenge.ruling);
     }
