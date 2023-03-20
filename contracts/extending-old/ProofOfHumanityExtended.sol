@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1*, @shotaronowhere*, @gratestas, Param, @fnanni-0*]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -91,7 +91,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         bool pendingRevocation; // True if the human is in the process of revocation.
         uint64 nbPendingRequests; // Number of pending requests in challenging phase.
         mapping(address => uint256) claims; // Mapping of the claimer address to the id of the current claim request.
-        Request[] requests; // Mapping of the ids to corresponding requests.
+        Request[] requests; // Array of the ids to corresponding requests.
     }
 
     struct Request {
@@ -104,8 +104,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint32 lastProcessedVouch; // Stores the index of the last processed vouch in the array of vouches. It is used for partial processing of the vouches in resolved requests.
         address payable requester; // Address that made the request.
         address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged human must pay the fines to this address.
-        uint64 challengePeriodStart; // Time until the request can be challenged.
-        bool requesterLost; // True if the requester has already had a dispute that wasn't ruled in his favor.
+        uint64 challengePeriodStart; // Time when the request can be challenged.
+        bool punishedVouch; // True if the requester has already had a dispute that wasn't ruled in his favor.
         bytes20[] vouches; // Stores the unique Ids of humans that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeId -> Challenge.
     }
@@ -115,10 +115,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 forChallenger; // Amount of contributions made for the challenger.
     }
 
-    // Some arrays below have 3 elements to map with the Party enums for better readability:
-    // - 0: is unused, matches `Party.None`.
-    // - 1: for `Party.Requester`.
-    // - 2: for `Party.Challenger`.
     struct Round {
         Party sideFunded; // Stores the side that successfully paid the appeal fees in the latest round. Note that if both sides have paid a new round is created.
         uint256 feeRewards; // Sum of reimbursable fees and stake rewards available to the parties that made contributions to the side that ultimately wins a dispute.
@@ -170,7 +166,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// @notice Time after which the humanity will no longer be considered claimed. The human has to renew the humanity to refresh it.
     uint64 public humanityLifespan;
-    /// @notice  The duration of the period when the registered humanity can be renewd.
+    /// @notice  The duration of the period when the registered humanity can be renewed.
     uint64 public renewalPeriodDuration;
     /// @notice The time after which a request becomes executable if not challenged.
     uint64 public challengePeriodDuration;
@@ -330,7 +326,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GOVERNANCE ====== ///
 
-    /** @notice Manually grant humanity via cross-chain instance / governor.
+    /** @notice Manually grant humanity via cross-chain instance.
      *
      *  @dev Emits {HumanityGrantedManually} event.
      *
@@ -367,7 +363,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         return true;
     }
 
-    /** @notice Directly revoke a humanity via cross-chain instance/governor.
+    /** @notice Directly revoke a humanity via cross-chain instance.
      *
      *  @dev Emits {HumanityRevokedManually} event.
      *
@@ -572,7 +568,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
     }
 
-    function claimHumanity(string calldata _evidence, string calldata _name) external payable {
+    function claimHumanityDefault(string calldata _evidence, string calldata _name) external payable {
         _claimHumanity(bytes20(msg.sender), _evidence, _name);
     }
 
@@ -599,7 +595,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[humanityId];
 
         require(humanity.owner == msg.sender);
-        require(humanity.expirationTime.subCap64(renewalPeriodDuration) <= block.timestamp);
+        require(block.timestamp > humanity.expirationTime.subCap64(renewalPeriodDuration));
 
         uint256 requestId = _requestHumanity(humanityId, _evidence);
 
@@ -630,13 +626,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 : _getForkModule().removalReady(address(_humanityId))
         );
 
-        uint256 requestId = humanity.requests.length;
-
         Request storage request = humanity.requests.push();
         request.status = Status.Resolving;
         request.revocation = true;
         request.requester = payable(msg.sender);
         request.challengePeriodStart = uint64(block.timestamp);
+
+        uint256 requestId = humanity.requests.length;
 
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
@@ -658,8 +654,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Fund the requester's deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
-     *
-     *  @dev Emits {RequestContribution} event.
      *
      *  @dev Requirements:
      *  - Human must be in the process of claiming a humanity and the request is in Vouching state.
@@ -718,6 +712,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.status == Status.Vouching);
 
         delete humanity.claims[msg.sender];
+        delete humans[msg.sender];
         request.status = Status.Resolved;
 
         // Automatically withdraw for the requester.
@@ -726,9 +721,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         emit RequestWithdrawn(humanityId, requestId);
     }
 
-    /** @notice Change human's phase from Vouching to Claiming if all conditions are met.
+    /** @notice Change human's phase from Vouching to Resolving if all conditions are met.
      *
-     *  @dev Emits {VouchAdded} event.
+     *  @dev Emits {VouchRegistered} event.
      *  @dev Emits {StateAdvanced} event.
      *
      *  @dev Requirements:
@@ -759,7 +754,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 requestId = humanity.claims[_claimer];
         Request storage request = humanity.requests[requestId];
         require(request.status == Status.Vouching);
-        require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
+        require(
+            humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime.subCap64(renewalPeriodDuration)
+        );
         require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
         address voucherAccount;
@@ -849,14 +846,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Reason _reason,
         string calldata _evidence
     ) external payable {
-        Humanity storage humanity = humanityMapping[_humanityId];
-        require(humanity.pendingRevocation == (_reason == Reason.None));
-
-        Request storage request = humanity.requests[_requestId];
+        Request storage request = humanityMapping[_humanityId].requests[_requestId];
+        require(request.revocation == (_reason == Reason.None));
         require(request.status == Status.Resolving);
         require(request.challengePeriodStart + challengePeriodDuration >= uint64(block.timestamp));
 
-        if (request.currentReason != _reason) {
+        if (!request.revocation) {
             // Get the bit that corresponds with reason's index.
             uint8 reasonBit;
             unchecked {
@@ -902,7 +897,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         emit Dispute(
             arbitratorData.arbitrator,
             challenge.disputeId,
-            2 * arbitratorData.metaEvidenceUpdates + (humanity.pendingRevocation ? 1 : 0),
+            2 * arbitratorData.metaEvidenceUpdates + (request.revocation ? 1 : 0),
             evidenceGroupId
         );
 
@@ -912,7 +907,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /** @notice Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
      *
-     *  @dev Emits {AppealContribution} event.
      *  @dev Emits {AppealCreated} event.
      *
      *  @dev Requirements:
@@ -921,7 +915,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Challenge id must be valid.
      *  - Must be appeal period.
      *  - Appeal period must not be over for loser.
-     *  - Must fund an non-funded side.
+     *  - Must fund a non-funded side.
      *
      *  @param _humanityId Id corresponding to humanity of which request to fund.
      *  @param _requestId Id of the request.
@@ -977,7 +971,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /** @notice Execute a request if the challenge period passed and no one challenged the request.
      *
-     *  @dev Emits {RequestExecuted} event.
+     *  @dev Emits {HumanityClaimed} event.
+     *  @dev Emits {HumanityRevoked} event.
      *
      *  @dev Requirements:
      *  - Request must be in resolving state.
@@ -1000,7 +995,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             } else _getForkModule().removeFromRequest(address(_humanityId));
 
             emit HumanityRevoked(_humanityId, _requestId);
-        } else if (!request.requesterLost) {
+        } else if (!request.punishedVouch) {
             humanity.owner = request.requester;
             humanity.expirationTime = uint64(block.timestamp).addCap64(humanityLifespan);
 
@@ -1020,6 +1015,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @notice Users who vouched for bad humanity requests are penalized.
      *
      *  @dev Emits {VouchesProcessed} event.
+     *  @dev Emits {HumanityRevokedManually} event.
      *
      *  @dev Requirements:
      *  - Request must be resolved.
@@ -1050,7 +1046,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 if (voucherHumanity.owner != address(0x0) && voucherHumanity.expirationTime >= block.timestamp) {
                     // Check the situation when vouching address is in the middle of renewal process.
                     uint256 voucherRequestId = voucherHumanity.claims[voucherHumanity.owner];
-                    if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].requesterLost = true;
+                    if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].punishedVouch = true;
 
                     delete voucherHumanity.owner;
                 } else _getForkModule().removeFromRequest(address(voucherHumanityId));
@@ -1140,7 +1136,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @dev Requirements:
      *  - Must be called by the arbitrator of the request.
-     *  - Request must be resolved.
+     *  - Request must be disputed.
      *
      *  @param _disputeId Id of the dispute in the arbitrator contract.
      *  @param _ruling Ruling given by the arbitrator.
@@ -1154,7 +1150,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Round storage round = challenge.rounds[challenge.lastRoundId];
 
         require(address(arbitratorDataList[request.arbitratorDataId].arbitrator) == msg.sender);
-        require(request.status != Status.Resolved);
+        require(request.status == Status.Disputed);
 
         // The ruling is inverted if the loser paid its fees.
         if (round.sideFunded == Party.Requester)
@@ -1164,6 +1160,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         // Store the rulings of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
+
+        emit Ruling(IArbitrator(msg.sender), _disputeId, uint256(resultRuling));
 
         if (request.revocation) {
             humanity.pendingRevocation = false;
@@ -1179,8 +1177,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         } else {
             // For a claim request there can be more than one dispute.
             if (resultRuling == Party.Requester) {
-                // Check whether or not the requester won all of his previous disputes for current reason.
-                if (!request.requesterLost) {
+                if (!request.punishedVouch) {
                     // All reasons being used means the request can't be challenged again, so we can update its status.
                     if (request.usedReasons == _FULL_REASONS_SET) {
                         humanity.owner = request.requester;
@@ -1203,22 +1200,16 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                     }
                 }
                 // Challenger won or it’s a tie.
-            } else {
-                if (resultRuling == Party.Challenger) request.ultimateChallenger = challenge.challenger;
-                request.requesterLost = true;
-            }
+            } else if (resultRuling == Party.Challenger) request.ultimateChallenger = challenge.challenger;
         }
 
         humanity.nbPendingRequests--;
         request.status = Status.Resolved;
         delete humanity.claims[request.requester];
-
-        emit Ruling(IArbitrator(msg.sender), _disputeId, uint256(resultRuling));
     }
 
     /** @notice Submit a reference to evidence.
      *
-     *  @dev Emits {EvidenceAppended} event.
      *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
@@ -1256,10 +1247,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         Humanity storage humanity = humanityMapping[_humanityId];
 
-        requestId = humanity.requests.length;
-
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
+
+        requestId = humanity.requests.length;
 
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
@@ -1333,7 +1324,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         }
     }
 
-    /** @notice Check whether id corresponds to a claimed humanity.
+    /** @notice Check whether humanity is claimer or not.
      *  @param _humanityId The id of the humanity to check.
      *  @return Whether humanity is claimed.
      */
@@ -1436,7 +1427,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         external
         view
         returns (
-            bool requesterLost,
+            bool punishedVouch,
             uint8 usedReasons,
             uint16 arbitratorDataId,
             uint16 lastChallengeId,
@@ -1449,7 +1440,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         return (
-            request.requesterLost,
+            request.punishedVouch,
             request.usedReasons,
             request.arbitratorDataId,
             request.lastChallengeId,
