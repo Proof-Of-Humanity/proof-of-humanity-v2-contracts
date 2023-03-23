@@ -84,8 +84,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint64 expirationTime; // Time when the humanity expires.
         bool vouching; // True if the human used its vouch for another human. This is set back to false once the vouch is processed.
         bool pendingRevocation; // True if the human is in the process of revocation.
-        uint64 nbPendingRequests; // Number of pending requests in challenging phase.
-        mapping(address => uint256) claims; // Mapping of the claimer address to the id of the current claim request.
+        uint48 nbPendingRequests; // Number of pending requests in challenging phase.
+        mapping(address => uint256) requestCount; // Mapping of the claimer address to the number of requests at the moment of the claim.
         Request[] requests; // Array of the ids to corresponding requests.
     }
 
@@ -100,7 +100,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         address payable requester; // Address that made the request.
         address payable ultimateChallenger; // Address of the challenger who won a dispute. Users who vouched for the challenged human must pay the fines to this address.
         uint64 challengePeriodStart; // Time when the request can be challenged.
-        bool punishedVouch; // True if the requester has already had a dispute that wasn't ruled in his favor.
+        bool punishedVouch; // True if the requester was punished for bad vouching during a claim request.
         bytes20[] vouches; // Stores the unique Ids of humans that vouched for this request and whose vouches were used in this request.
         mapping(uint256 => Challenge) challenges; // Stores all the challenges of this request. challengeId -> Challenge.
     }
@@ -119,9 +119,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     struct Challenge {
         uint16 lastRoundId; // Id of the last round.
+        Party ruling; // Ruling given by the arbitrator of the dispute.
         address payable challenger; // Address that challenged the request.
         uint256 disputeId; // Id of the dispute related to the challenge.
-        Party ruling; // Ruling given by the arbitrator of the dispute.
         mapping(uint256 => Round) rounds; // Tracks the info of each funding round of the challenge.
     }
 
@@ -344,7 +344,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) return false;
 
         // Must not be in the process of claiming a humanity.
-        require(humanityMapping[humans[_account]].claims[_account] == 0);
+        require(humanityMapping[humans[_account]].requestCount[_account] == 0);
 
         humanity.owner = _account;
         humanity.expirationTime = _expirationTime;
@@ -599,13 +599,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp);
         require(!humanity.pendingRevocation);
 
+        uint256 requestId = humanity.requests.length;
+
         Request storage request = humanity.requests.push();
         request.status = Status.Resolving;
         request.revocation = true;
         request.requester = payable(msg.sender);
         request.challengePeriodStart = uint64(block.timestamp);
-
-        uint256 requestId = humanity.requests.length;
 
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
@@ -680,11 +680,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     function withdrawRequest() external {
         bytes20 humanityId = humans[msg.sender];
         Humanity storage humanity = humanityMapping[humanityId];
-        uint256 requestId = humanity.claims[msg.sender];
+        uint256 requestId = humanity.requestCount[msg.sender] - 1;
         Request storage request = humanity.requests[requestId];
         require(request.status == Status.Vouching);
 
-        delete humanity.claims[msg.sender];
+        delete humanity.requestCount[msg.sender];
         delete humans[msg.sender];
         request.status = Status.Resolved;
 
@@ -724,7 +724,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     ) external {
         bytes20 humanityId = humans[_claimer];
         Humanity storage humanity = humanityMapping[humanityId];
-        uint256 requestId = humanity.claims[_claimer];
+        uint256 requestId = humanity.requestCount[_claimer] - 1;
         Request storage request = humanity.requests[requestId];
         require(request.status == Status.Vouching);
         require(
@@ -975,7 +975,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         humanity.nbPendingRequests--;
         request.status = Status.Resolved;
-        delete humanity.claims[request.requester];
+        delete humanity.requestCount[request.requester];
 
         if (request.vouches.length != 0) processVouches(_humanityId, _requestId, _AUTO_PROCESSED_VOUCH);
 
@@ -1014,7 +1014,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             voucherHumanity.vouching = false;
             if (applyPenalty) {
                 // Check the situation when vouching address is in the middle of renewal process.
-                uint256 voucherRequestId = voucherHumanity.claims[voucherHumanity.owner];
+                uint256 voucherRequestId = voucherHumanity.requestCount[voucherHumanity.owner] - 1;
                 if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].punishedVouch = true;
 
                 delete voucherHumanity.owner;
@@ -1171,7 +1171,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         humanity.nbPendingRequests--;
         request.status = Status.Resolved;
-        delete humanity.claims[request.requester];
+        delete humanity.requestCount[request.requester];
     }
 
     /** @notice Submit a reference to evidence.
@@ -1209,19 +1209,19 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function _requestHumanity(bytes20 _humanityId, string calldata _evidence) internal returns (uint256 requestId) {
         // Human must not be in the process of claiming a humanity.
-        require(humanityMapping[humans[msg.sender]].claims[msg.sender] == 0);
+        require(humanityMapping[humans[msg.sender]].requestCount[msg.sender] == 0);
 
         Humanity storage humanity = humanityMapping[_humanityId];
+
+        requestId = humanity.requests.length;
 
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
 
-        requestId = humanity.requests.length;
-
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
 
-        humanity.claims[msg.sender] = requestId;
+        humanity.requestCount[msg.sender] = requestId + 1;
         humans[msg.sender] = _humanityId;
 
         ArbitratorData memory arbitratorData = arbitratorDataList[arbitratorDataId];
@@ -1284,7 +1284,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GETTERS ====== ///
 
-    /** @notice Check whether humanity is claimer or not.
+    /** @notice Check whether humanity is claimed or not.
      *  @param _humanityId The id of the humanity to check.
      *  @return Whether humanity is claimed.
      */
@@ -1341,7 +1341,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         returns (
             bool vouching,
             bool pendingRevocation,
-            uint64 nbPendingRequests,
+            uint48 nbPendingRequests,
             uint64 expirationTime,
             address owner,
             uint256 nbRequests
@@ -1362,7 +1362,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _claimer Address of the claimer.
      */
     function getClaimerRequestId(address _claimer) external view returns (uint256) {
-        return humanityMapping[humans[_claimer]].claims[_claimer];
+        return humanityMapping[humans[_claimer]].requestCount[_claimer] - 1;
     }
 
     /** @notice Get information of a request of a humanity.
