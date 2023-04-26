@@ -147,6 +147,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== STORAGE ====== ///
 
+    /// @notice Address of wrapped version of the chain's native currency. WETH-like.
+    address public wNative;
+
     /// @notice Indicates that the contract has been initialized.
     bool public initialized;
 
@@ -283,6 +286,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requiredNumberOfVouches The number of vouches the human has to have to pass from Vouching to Resolving phase.
      */
     function initialize(
+        address _wNative,
         IArbitrator _arbitrator,
         bytes memory _arbitratorExtraData,
         string memory _registrationMetaEvidence,
@@ -294,6 +298,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256[3] memory _multipliers,
         uint64 _requiredNumberOfVouches
     ) public initializer {
+        wNative = _wNative;
         governor = msg.sender;
         requestBaseDeposit = _requestBaseDeposit;
         humanityLifespan = _humanityLifespan;
@@ -1089,7 +1094,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         beneficiaryContributions.forRequester = 0;
         beneficiaryContributions.forChallenger = 0;
-        _beneficiary.safeSend(reward);
+        _beneficiary.safeSend(reward, wNative);
 
         emit FeesAndRewardsWithdrawn(_humanityId, _requestId, _challengeId, _round, _beneficiary);
     }
@@ -1279,7 +1284,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         emit Contribution(_humanityId, _requestId, _challengeId, _roundId, msg.sender, contribution, _side);
 
-        if (remainingETH != 0) payable(msg.sender).safeSend(remainingETH);
+        if (remainingETH != 0) payable(msg.sender).safeSend(remainingETH, wNative);
     }
 
     /// ====== GETTERS ====== ///

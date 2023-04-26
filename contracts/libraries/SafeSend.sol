@@ -15,13 +15,10 @@ interface WethLike {
 }
 
 library SafeSend {
-    // Set before deploying
-    WethLike internal constant W_NATIVE = WethLike(address(0x0));
+    function safeSend(address payable _to, uint256 _value, address _wethLike) internal {
+        if (!_to.send(_value)) return;
 
-    function safeSend(address payable _to, uint256 _value) internal {
-        if (_to.send(_value)) return;
-
-        W_NATIVE.deposit{value: _value}();
-        W_NATIVE.transfer(_to, _value);
+        WethLike(_wethLike).deposit{value: _value}();
+        WethLike(_wethLike).transfer(_to, _value);
     }
 }
