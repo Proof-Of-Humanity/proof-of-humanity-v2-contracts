@@ -24,7 +24,9 @@ interface IProofOfHumanityOld {
 
     function isRegistered(address _submissionID) external view returns (bool);
 
-    function getSubmissionInfo(address _submissionID)
+    function getSubmissionInfo(
+        address _submissionID
+    )
         external
         view
         returns (
@@ -70,12 +72,21 @@ contract ForkModule is IForkModule {
 
     /// ====== STORAGE ====== ///
 
-    IProofOfHumanityOld public immutable oldProofOfHumanity;
-    address public immutable proofOfHumanityV2;
+    /// @dev Indicates that the contract has been initialized.
+    bool public initialized;
+
+    IProofOfHumanityOld public oldProofOfHumanity;
+    address public proofOfHumanityV2;
 
     uint64 public submissionDuration;
 
     mapping(address => bool) public removed;
+
+    modifier initializer() {
+        require(!initialized);
+        initialized = true;
+        _;
+    }
 
     modifier onlyV2() {
         require(msg.sender == address(proofOfHumanityV2), "!V2");
@@ -84,7 +95,7 @@ contract ForkModule is IForkModule {
 
     /// ====== CONSTRUCTION ====== ///
 
-    constructor(address _proofOfHumanityV2, address _oldProofOfHumanity) {
+    function initialize(address _proofOfHumanityV2, address _oldProofOfHumanity) public initializer {
         proofOfHumanityV2 = _proofOfHumanityV2;
         oldProofOfHumanity = IProofOfHumanityOld(_oldProofOfHumanity);
         submissionDuration = oldProofOfHumanity.submissionDuration();
@@ -145,7 +156,6 @@ contract ForkModule is IForkModule {
      *
      *  @dev Requirements:
      *  - Locked state means passing one of following conditions:
-     *      - Must have been removed in the contract.
      *      - Must have status None/Vouching.
      *
      *  @param _submissionID Address corresponding to the human.
@@ -204,12 +214,9 @@ contract ForkModule is IForkModule {
         return !removed[_submissionID] && oldProofOfHumanity.isRegistered(_submissionID);
     }
 
-    function getSubmissionInfo(address _submissionID)
-        external
-        view
-        override
-        returns (bool registered, uint64 expirationTime)
-    {
+    function getSubmissionInfo(
+        address _submissionID
+    ) external view override returns (bool registered, uint64 expirationTime) {
         (, uint64 submissionTime, , bool registeredOnV1, , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
 
         expirationTime = submissionTime.addCap64(submissionDuration);

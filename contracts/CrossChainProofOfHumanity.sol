@@ -17,7 +17,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     struct Transfer {
         bytes20 humanityId; // the unique id corresponding to the humanity to transfer
         uint64 humanityExpirationTime; // expirationTime at the moment of transfer
-        bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, chainID, nonce)
+        bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, block.timestamp, address(this), address(foreignProxy))
         address foreignProxy; // address of the foreign proxy
     }
 
@@ -227,8 +227,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function retryFailedTransfer(bytes20 _humanityId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         (, , , uint64 expirationTime, , ) = proofOfHumanity.getHumanityInfo(_humanityId);
-
-        require(bridgeGateways[_bridgeGateway].approved, "Bridge gateway not supported");
 
         CrossChainHumanity memory humanity = humanityMapping[_humanityId];
         Transfer memory transfer = transfers[_humanityId];

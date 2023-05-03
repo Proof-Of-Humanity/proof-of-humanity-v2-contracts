@@ -16,7 +16,7 @@ interface WethLike {
 
 library SafeSend {
     function safeSend(address payable _to, uint256 _value, address _wethLike) internal {
-        if (!_to.send(_value)) return;
+        if (_to.send(_value)) return;
 
         WethLike(_wethLike).deposit{value: _value}();
         WethLike(_wethLike).transfer(_to, _value);

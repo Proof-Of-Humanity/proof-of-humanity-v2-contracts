@@ -626,10 +626,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         require(
-            humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp
-                ? !humanity.pendingRevocation
-                : _getForkModule().removalReady(address(_humanityId))
+            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+                _getForkModule().removalReady(address(_humanityId))
         );
+        require(!humanity.pendingRevocation);
 
         uint256 requestId = humanity.requests.length;
 
@@ -1329,7 +1329,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         }
     }
 
-    /** @notice Check whether humanity is claimer or not.
+    /** @notice Check whether humanity is claimed or not.
      *  @param _humanityId The id of the humanity to check.
      *  @return Whether humanity is claimed.
      */
@@ -1418,7 +1418,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _claimer Address of the claimer.
      */
     function getClaimerRequestId(address _claimer) external view returns (uint256) {
-        return humanityMapping[humans[_claimer]].requestCount[_claimer];
+        return humanityMapping[humans[_claimer]].requestCount[_claimer] - 1;
     }
 
     /** @notice Get information of a request of a humanity.
