@@ -20,7 +20,7 @@ task("Accounts", "Prints the accounts", async (_taskArgs, hre) => {
 });
 
 const config: HardhatUserConfig = {
-  solidity: { version: "0.8.18", settings: { optimizer: { enabled: true, runs: 2500 }, viaIR: true } },
+  solidity: { version: "0.8.18", settings: { optimizer: { enabled: true, runs: 2000 }, viaIR: true } },
   networks: {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     // mainnet: { chainId: 1, url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}` },
