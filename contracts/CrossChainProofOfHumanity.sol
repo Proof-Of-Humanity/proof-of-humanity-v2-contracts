@@ -81,7 +81,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         address gateway,
         bytes32 transferHash
     );
-    event TransferRetry(bytes32 transferHash);
     event TransferReceived(
         bytes20 indexed humanityId,
         address indexed owner,
@@ -219,35 +218,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         );
 
         emit TransferInitiated(humanityId, msg.sender, expirationTime, _bridgeGateway, tHash);
-    }
-
-    /** @notice Retry a failed transfer
-     *  @param _humanityId ID of the humanity to retry transfer for
-     *  @param _bridgeGateway address of the bridge gateway to use
-     */
-    function retryFailedTransfer(bytes20 _humanityId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, , ) = proofOfHumanity.getHumanityInfo(_humanityId);
-
-        CrossChainHumanity memory humanity = humanityMapping[_humanityId];
-        Transfer memory transfer = transfers[_humanityId];
-        require(
-            bridgeGateways[_bridgeGateway].foreignProxy == transfer.foreignProxy,
-            "Bridge gateway corresponds to wrong foreign proxy"
-        );
-        require(transfer.transferHash != 0, "No transfer was initiated");
-        require(expirationTime == transfer.humanityExpirationTime, "Humanity time mismatch");
-
-        IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(
-                ICrossChainProofOfHumanity.receiveTransfer.selector,
-                humanity.owner,
-                transfer.humanityId,
-                transfer.humanityExpirationTime,
-                transfer.transferHash
-            )
-        );
-
-        emit TransferRetry(transfer.transferHash);
     }
 
     // ========== RECEIVES ==========
