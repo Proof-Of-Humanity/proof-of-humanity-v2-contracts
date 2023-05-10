@@ -274,6 +274,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Emits {MetaEvidence} event for the registration meta evidence.
      *  @dev Emits {MetaEvidence} event for the clearing meta evidence.
      *
+     *  @param _wNative The address of the wrapped version of the native currency.
      *  @param _arbitrator The trusted arbitrator to resolve potential disputes.
      *  @param _arbitratorExtraData Extra data for the trusted arbitrator contract.
      *  @param _registrationMetaEvidence The URI of the meta evidence object for registration requests.

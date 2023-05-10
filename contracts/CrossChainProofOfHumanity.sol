@@ -226,7 +226,6 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _owner ID of the human corresponding to the humanity
      *  @param _humanityId ID of the humanity to update
      *  @param _expirationTime time when the humanity was last claimed
-     *  @param _humanityId unique ID of the humanity
      */
     function receiveUpdate(
         address _owner,
