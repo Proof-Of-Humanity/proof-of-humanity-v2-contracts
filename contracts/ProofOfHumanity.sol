@@ -432,7 +432,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint64 _renewalPeriodDuration,
         uint64 _challengePeriodDuration
     ) external onlyGovernor {
-        require(_challengePeriodDuration + _renewalPeriodDuration < _humanityLifespan);
         humanityLifespan = _humanityLifespan;
         renewalPeriodDuration = _renewalPeriodDuration;
         challengePeriodDuration = _challengePeriodDuration;
