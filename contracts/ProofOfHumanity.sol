@@ -85,6 +85,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         bool vouching; // True if the human used its vouch for another human. This is set back to false once the vouch is processed.
         bool pendingRevocation; // True if the human is in the process of revocation.
         uint48 nbPendingRequests; // Number of pending requests in challenging phase.
+        uint64 lastFailedRevocationTime; // Resolution time for last failed revocation request.
         mapping(address => uint256) requestCount; // Mapping of the claimer address to the number of requests at the moment of the claim.
         Request[] requests; // Array of the ids to corresponding requests.
     }
@@ -168,6 +169,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     uint64 public renewalPeriodDuration;
     /// @notice The time after which a request becomes executable if not challenged.
     uint64 public challengePeriodDuration;
+
+    /// @notice The time after which a request becomes executable if not challenged.
+    uint64 public failedRevocationCooldown;
 
     /// @notice The number of registered users that have to vouch for a new claim request in order for it to advance beyond Vouching state.
     uint64 public requiredNumberOfVouches;
@@ -525,7 +529,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== REQUESTS ====== ///
 
-    /** @notice Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
+    /** @notice Making a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {ClaimRequest} event.
      *
@@ -534,9 +538,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Humanity corresponding to _humanityId must not be claimed (can be expired).
      *  - Sender must not be in the process of claiming a humanity (covered by _requestHumanity).
      *
-     *  @param _humanityId The humanity id the human applies for. 0 can be used as default.
+     *  @param _humanityId The humanity id the human applies for.
      *  @param _evidence Link to evidence using its URI.
-     *  @param _name Name of the human (for Subgraph only and it won't be used in this function).
+     *  @param _name Name of the human.
      */
     function _claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) internal {
         Humanity storage humanity = humanityMapping[_humanityId];
@@ -549,10 +553,21 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
     }
 
+    /** @notice Make a request to enter the registry. Use default humanity id derived from sender address.
+     *
+     *  @param _evidence Link to evidence using its URI.
+     *  @param _name Name of the human.
+     */
     function claimHumanityDefault(string calldata _evidence, string calldata _name) external payable {
         _claimHumanity(bytes20(msg.sender), _evidence, _name);
     }
 
+    /** @notice Make a request to enter the registry. Humanity id to be specified.
+     *
+     *  @param _humanityId The humanity id the human applies for.
+     *  @param _evidence Link to evidence using its URI.
+     *  @param _name Name of the human.
+     */
     function claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) external payable {
         require(_humanityId != 0);
         _claimHumanity(_humanityId, _evidence, _name);
@@ -603,6 +618,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         require(humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp);
         require(!humanity.pendingRevocation);
+        require(block.timestamp > humanity.lastFailedRevocationTime.addCap64(failedRevocationCooldown));
 
         uint256 requestId = humanity.requests.length;
 
@@ -1144,7 +1160,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                 delete humans[humanity.owner];
 
                 emit HumanityRevoked(disputeData.humanityId, disputeData.requestId);
-            }
+            } else humanity.lastFailedRevocationTime = uint64(block.timestamp);
         } else {
             // For a claim request there can be more than one dispute.
             if (resultRuling == Party.Requester) {

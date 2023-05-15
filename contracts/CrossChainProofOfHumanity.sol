@@ -223,9 +223,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     // ========== RECEIVES ==========
 
     /** @notice Receives the humanity from the foreign proxy
-     *  @param _owner ID of the human corresponding to the humanity
+     *  @param _owner Wallet address corresponding to the humanity
      *  @param _humanityId ID of the humanity to update
-     *  @param _expirationTime time when the humanity was last claimed
+     *  @param _expirationTime time when the humanity expires
      */
     function receiveUpdate(
         address _owner,
