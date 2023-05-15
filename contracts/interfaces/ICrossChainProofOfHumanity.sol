@@ -2,17 +2,12 @@
 pragma solidity 0.8.18;
 
 interface ICrossChainProofOfHumanity {
-    function receiveUpdate(
-        address _owner,
-        bytes20 _humanityId,
-        uint64 _expirationTime,
-        bool _isActive
-    ) external;
+    function receiveUpdate(address _owner, bytes20 _humanityId, uint40 _expirationTime, bool _isActive) external;
 
     function receiveTransfer(
         address _owner,
         bytes20 _humanityId,
-        uint64 _expirationTime,
+        uint40 _expirationTime,
         bytes32 _transferHash
     ) external;
 }

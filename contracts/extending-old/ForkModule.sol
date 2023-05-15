@@ -42,7 +42,7 @@ interface IProofOfHumanityOld {
 interface IForkModule {
     function removeFromRequest(address _submissionID) external returns (bool);
 
-    function removeForTransfer(address _submissionID) external returns (uint64);
+    function removeForTransfer(address _submissionID) external returns (uint40);
 
     function isRegistered(address _submissionID) external view returns (bool);
 
@@ -52,7 +52,7 @@ interface IForkModule {
 
     function removalReady(address _submissionID) external view returns (bool);
 
-    function getSubmissionInfo(address _submissionID) external view returns (bool registered, uint64 expirationTime);
+    function getSubmissionInfo(address _submissionID) external view returns (bool registered, uint40 expirationTime);
 }
 
 /** PoHV2 functions which interact with the old PoH contract.
@@ -68,7 +68,7 @@ interface IForkModule {
  */
 
 contract ForkModule is IForkModule {
-    using CappedMath for uint64;
+    using CappedMath for uint40;
 
     /// ====== STORAGE ====== ///
 
@@ -78,7 +78,7 @@ contract ForkModule is IForkModule {
     IProofOfHumanityOld public oldProofOfHumanity;
     address public proofOfHumanityV2;
 
-    uint64 public submissionDuration;
+    uint40 public submissionDuration;
 
     mapping(address => bool) public removed;
 
@@ -98,7 +98,7 @@ contract ForkModule is IForkModule {
     function initialize(address _proofOfHumanityV2, address _oldProofOfHumanity) public initializer {
         proofOfHumanityV2 = _proofOfHumanityV2;
         oldProofOfHumanity = IProofOfHumanityOld(_oldProofOfHumanity);
-        submissionDuration = oldProofOfHumanity.submissionDuration();
+        submissionDuration = uint40(oldProofOfHumanity.submissionDuration());
     }
 
     /// ====== FUNCTIONS ====== ///
@@ -134,13 +134,13 @@ contract ForkModule is IForkModule {
      *  @param _submissionID Address corresponding to the human.
      *  @return expirationTime Expiration time of the revoked humanity.
      */
-    function removeForTransfer(address _submissionID) external override onlyV2 returns (uint64 expirationTime) {
+    function removeForTransfer(address _submissionID) external override onlyV2 returns (uint40 expirationTime) {
         require(!removed[_submissionID], "!removed");
 
         (OldStatus status, uint64 submissionTime, , bool registered, bool isVouching, ) = oldProofOfHumanity
             .getSubmissionInfo(_submissionID);
 
-        expirationTime = submissionTime.addCap64(submissionDuration);
+        expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
         require(
             registered && expirationTime > block.timestamp && status <= OldStatus.Vouching && !isVouching,
@@ -184,7 +184,7 @@ contract ForkModule is IForkModule {
             .getSubmissionInfo(_submissionID);
 
         return (registered &&
-            submissionTime.addCap64(submissionDuration) > block.timestamp &&
+            uint40(submissionTime).addCap40(submissionDuration) > block.timestamp &&
             status <= OldStatus.Vouching &&
             !isVouching);
     }
@@ -205,7 +205,7 @@ contract ForkModule is IForkModule {
             _submissionID
         );
 
-        uint64 expirationTime = submissionTime.addCap64(submissionDuration);
+        uint40 expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
         return (registeredOnV1 && expirationTime > block.timestamp && status <= OldStatus.Vouching);
     }
@@ -216,10 +216,10 @@ contract ForkModule is IForkModule {
 
     function getSubmissionInfo(
         address _submissionID
-    ) external view override returns (bool registered, uint64 expirationTime) {
+    ) external view override returns (bool registered, uint40 expirationTime) {
         (, uint64 submissionTime, , bool registeredOnV1, , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
 
-        expirationTime = submissionTime.addCap64(submissionDuration);
+        expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
         if (registeredOnV1 && expirationTime > block.timestamp) registered = true;
     }

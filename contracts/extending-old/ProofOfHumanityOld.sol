@@ -13,7 +13,71 @@ import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
 import "@kleros/erc-792/contracts/IArbitrator.sol";
 
-import "../libraries/CappedMath.sol";
+/**
+ * @title CappedMath
+ * @dev Math operations with caps for under and overflow.
+ */
+library CappedMath {
+    uint256 private constant UINT_MAX = type(uint256).max;
+    uint64 private constant UINT64_MAX = type(uint64).max;
+
+    /**
+     * @dev Adds two unsigned integers, returns 2^256 - 1 on overflow.
+     */
+    function addCap(uint256 _a, uint256 _b) internal pure returns (uint256) {
+        unchecked {
+            uint256 c = _a + _b;
+            return c >= _a ? c : UINT_MAX;
+        }
+    }
+
+    /**
+     * @dev Subtracts two integers, returns 0 on underflow.
+     */
+    function subCap(uint256 _a, uint256 _b) internal pure returns (uint256) {
+        if (_b > _a) return 0;
+        else return _a - _b;
+    }
+
+    /**
+     * @dev Multiplies two unsigned integers, returns 2^256 - 1 on overflow.
+     */
+    function mulCap(uint256 _a, uint256 _b) internal pure returns (uint256) {
+        // Gas optimization: this is cheaper than requiring '_a' not being zero, but the
+        // benefit is lost if '_b' is also tested.
+        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522
+        if (_a == 0) return 0;
+
+        unchecked {
+            uint256 c = _a * _b;
+            return c / _a == _b ? c : UINT_MAX;
+        }
+    }
+
+    function addCap64(uint64 _a, uint64 _b) internal pure returns (uint64) {
+        unchecked {
+            uint64 c = _a + _b;
+            return c >= _a ? c : UINT64_MAX;
+        }
+    }
+
+    function subCap64(uint64 _a, uint64 _b) internal pure returns (uint64) {
+        if (_b > _a) return 0;
+        else return _a - _b;
+    }
+
+    function mulCap64(uint64 _a, uint64 _b) internal pure returns (uint64) {
+        // Gas optimization: this is cheaper than requiring '_a' not being zero, but the
+        // benefit is lost if '_b' is also tested.
+        // See: https://github.com/OpenZeppelin/openzeppelin-solidity/pull/522
+        if (_a == 0) return 0;
+
+        unchecked {
+            uint64 c = _a * _b;
+            return c / _a == _b ? c : UINT64_MAX;
+        }
+    }
+}
 
 /**
  *  @title ProofOfHumanity
@@ -416,10 +480,10 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _registrationMetaEvidence The meta evidence to be used for future registration request disputes.
      *  @param _clearingMetaEvidence The meta evidence to be used for future clearing request disputes.
      */
-    function changeMetaEvidence(string calldata _registrationMetaEvidence, string calldata _clearingMetaEvidence)
-        external
-        onlyGovernor
-    {
+    function changeMetaEvidence(
+        string calldata _registrationMetaEvidence,
+        string calldata _clearingMetaEvidence
+    ) external onlyGovernor {
         ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
         uint96 newMetaEvidenceUpdates = arbitratorData.metaEvidenceUpdates + 1;
         arbitratorDataList.push(
@@ -767,11 +831,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _challengeID The index of a dispute, created for the request.
      *  @param _side The recipient of the contribution.
      */
-    function fundAppeal(
-        address _submissionID,
-        uint256 _challengeID,
-        Party _side
-    ) external payable {
+    function fundAppeal(address _submissionID, uint256 _challengeID, Party _side) external payable {
         require(_side != Party.None); // You can only fund either requester or challenger.
         Submission storage submission = submissions[_submissionID];
         require(
@@ -871,11 +931,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _requestID The ID of the request which vouches to iterate.
      *  @param _iterations The number of iterations to go through.
      */
-    function processVouches(
-        address _submissionID,
-        uint256 _requestID,
-        uint256 _iterations
-    ) public {
+    function processVouches(address _submissionID, uint256 _requestID, uint256 _iterations) public {
         Submission storage submission = submissions[_submissionID];
         Request storage request = submission.requests[_requestID];
         require(request.resolved, "Submission must be resolved");
@@ -1044,11 +1100,10 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @return taken The amount of ETH taken.
      *  @return remainder The amount of ETH left from the contribution.
      */
-    function calculateContribution(uint256 _available, uint256 _requiredAmount)
-        internal
-        pure
-        returns (uint256 taken, uint256 remainder)
-    {
+    function calculateContribution(
+        uint256 _available,
+        uint256 _requiredAmount
+    ) internal pure returns (uint256 taken, uint256 remainder) {
         if (_requiredAmount > _available) return (_available, 0);
 
         remainder = _available - _requiredAmount;
@@ -1090,11 +1145,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _challengeID ID of the challenge, related to the dispute.
      *  @param _winner Ruling given by the arbitrator. Note that 0 is reserved for "Refused to arbitrate".
      */
-    function executeRuling(
-        address _submissionID,
-        uint256 _challengeID,
-        Party _winner
-    ) internal {
+    function executeRuling(address _submissionID, uint256 _challengeID, Party _winner) internal {
         Submission storage submission = submissions[_submissionID];
         uint256 requestID = submission.requests.length - 1;
         Status status = submission.status;
@@ -1215,7 +1266,9 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
     /** @dev Return the information of the submission. Includes length of requests array.
      *  @param _submissionID The address of the queried submission.
      */
-    function getSubmissionInfo(address _submissionID)
+    function getSubmissionInfo(
+        address _submissionID
+    )
         external
         view
         returns (
@@ -1273,7 +1326,10 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
      *  @param _submissionID The address of the queried submission.
      *  @param _requestID The request
      */
-    function getRequestInfo(address _submissionID, uint256 _requestID)
+    function getRequestInfo(
+        address _submissionID,
+        uint256 _requestID
+    )
         external
         view
         returns (
@@ -1324,16 +1380,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
         uint256 _requestID,
         uint256 _challengeID,
         uint256 _round
-    )
-        external
-        view
-        returns (
-            bool appealed,
-            uint256[3] memory paidFees,
-            Party sideFunded,
-            uint256 feeRewards
-        )
-    {
+    ) external view returns (bool appealed, uint256[3] memory paidFees, Party sideFunded, uint256 feeRewards) {
         Request storage request = submissions[_submissionID].requests[_requestID];
         Challenge storage challenge = request.challenges[_challengeID];
         Round storage round = challenge.rounds[_round];

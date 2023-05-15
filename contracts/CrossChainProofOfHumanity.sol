@@ -16,16 +16,16 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     struct Transfer {
         bytes20 humanityId; // the unique id corresponding to the humanity to transfer
-        uint64 humanityExpirationTime; // expirationTime at the moment of transfer
+        uint40 humanityExpirationTime; // expirationTime at the moment of transfer
         bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, block.timestamp, address(this), address(foreignProxy))
         address foreignProxy; // address of the foreign proxy
     }
 
     struct CrossChainHumanity {
-        bool isHomeChain; // whether current chain is home chain of the humanity
-        uint40 expirationTime; // expirationTime at the moment of update
         address owner; // the owner address
+        uint40 expirationTime; // expirationTime at the moment of update
         uint40 lastTransferTime; // time of the last received transfer
+        bool isHomeChain; // whether current chain is home chain of the humanity
     }
 
     struct GatewayInfo {
@@ -69,22 +69,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     event UpdateInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
+        uint40 expirationTime,
         address gateway,
         bool claimed
     );
-    event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint160 expirationTime, bool claimed);
+    event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime, bool claimed);
     event TransferInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
+        uint40 expirationTime,
         address gateway,
         bytes32 transferHash
     );
     event TransferReceived(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
+        uint40 expirationTime,
         bytes32 transferHash
     );
 
@@ -161,7 +161,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _humanityId Id of the humanity to update
      */
     function updateHumanity(address _bridgeGateway, bytes20 _humanityId) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
+        (, , , uint40 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
         bool humanityClaimed = proofOfHumanity.isClaimed(_humanityId);
 
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
@@ -186,12 +186,12 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         // This function requires humanity to be active, status None and human not vouching at the moment
-        (uint64 expirationTime, bytes20 humanityId) = proofOfHumanity.revokeManually(msg.sender);
+        (uint40 expirationTime, bytes20 humanityId) = proofOfHumanity.revokeManually(msg.sender);
 
         CrossChainHumanity storage humanity = humanityMapping[humanityId];
         require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        humanity.expirationTime = uint40(expirationTime);
+        humanity.expirationTime = expirationTime;
         humanity.owner = msg.sender;
         humanity.isHomeChain = false;
 
@@ -230,7 +230,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function receiveUpdate(
         address _owner,
         bytes20 _humanityId,
-        uint64 _expirationTime,
+        uint40 _expirationTime,
         bool _isActive
     ) external override allowedGateway(msg.sender) {
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
@@ -243,7 +243,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             humanity.owner = _owner;
         } else delete humanity.owner;
 
-        humanity.expirationTime = uint40(_expirationTime);
+        humanity.expirationTime = _expirationTime;
         humanity.isHomeChain = false;
 
         emit UpdateReceived(_humanityId, _owner, _expirationTime, _isActive);
@@ -258,7 +258,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function receiveTransfer(
         address _owner,
         bytes20 _humanityId,
-        uint64 _expirationTime,
+        uint40 _expirationTime,
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
         require(!receivedTransferHashes[_transferHash]);
@@ -275,7 +275,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             humans[_owner] = _humanityId;
 
             humanity.owner = _owner;
-            humanity.expirationTime = uint40(_expirationTime);
+            humanity.expirationTime = _expirationTime;
             humanity.isHomeChain = true;
             humanity.lastTransferTime = uint40(block.timestamp);
         }
