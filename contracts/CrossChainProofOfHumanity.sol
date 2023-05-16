@@ -70,8 +70,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bytes20 indexed humanityId,
         address indexed owner,
         uint40 expirationTime,
-        address gateway,
-        bool claimed
+        bool claimed,
+        address gateway
     );
     event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime, bool claimed);
     event TransferInitiated(
@@ -178,7 +178,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             )
         );
 
-        emit UpdateInitiated(_humanityId, owner, expirationTime, _bridgeGateway, humanityClaimed);
+        emit UpdateInitiated(_humanityId, owner, expirationTime, humanityClaimed, _bridgeGateway);
     }
 
     /** @notice Execute transfering the humanity to the foreign chain
