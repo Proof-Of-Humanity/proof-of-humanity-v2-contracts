@@ -556,7 +556,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== REQUESTS ====== ///
 
-    /** @notice Making a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
+    /** @notice Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {ClaimRequest} event.
      *
@@ -569,9 +569,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _evidence Link to evidence using its URI.
      *  @param _name Name of the human.
      */
-    function _claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) internal {
+    function claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) external payable {
         Humanity storage humanity = humanityMapping[_humanityId];
 
+        require(_humanityId != 0);
         require(!isHuman(msg.sender));
         require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
 
@@ -580,26 +581,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 requestId = _requestHumanity(_humanityId, _evidence);
 
         emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
-    }
-
-    /** @notice Make a request to enter the registry. Use default humanity id derived from sender address.
-     *
-     *  @param _evidence Link to evidence using its URI.
-     *  @param _name Name of the human.
-     */
-    function claimHumanityDefault(string calldata _evidence, string calldata _name) external payable {
-        _claimHumanity(bytes20(msg.sender), _evidence, _name);
-    }
-
-    /** @notice Make a request to enter the registry. Humanity id to be specified.
-     *
-     *  @param _humanityId The humanity id the human applies for.
-     *  @param _evidence Link to evidence using its URI.
-     *  @param _name Name of the human.
-     */
-    function claimHumanity(bytes20 _humanityId, string calldata _evidence, string calldata _name) external payable {
-        require(_humanityId != 0);
-        _claimHumanity(_humanityId, _evidence, _name);
     }
 
     /** @notice Make a request to renew humanity's lifespan. Paying the full deposit right away is not required as it can be crowdfunded later.
