@@ -6,7 +6,7 @@ interface IProofOfHumanity {
 
     function grantManually(bytes20 _qid, address _owner, uint40 _expirationTime) external returns (bool success);
 
-    function revokeManually(address _owner) external returns (uint40 expirationTime, bytes20 humanityId);
+    function revokeManually(address _owner) external returns (bytes20 humanityId, uint40 expirationTime);
 
     /* Views */
 

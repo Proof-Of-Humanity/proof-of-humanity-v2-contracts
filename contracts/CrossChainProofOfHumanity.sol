@@ -185,8 +185,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _bridgeGateway address of the bridge gateway to use
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        // This function requires humanity to be active, status None and human not vouching at the moment
-        (uint40 expirationTime, bytes20 humanityId) = proofOfHumanity.revokeManually(msg.sender);
+        // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
+        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.revokeManually(msg.sender);
 
         CrossChainHumanity storage humanity = humanityMapping[humanityId];
         require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");

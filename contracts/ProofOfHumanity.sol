@@ -379,12 +379,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  - Humanity must not be vouching at the moment.
      *
      *  @param _account Human corresponding to the humanity to be revoked.
-     *  @return expirationTime Expiration time of the revoked humanity.
      *  @return humanityId Unique id corresponding to the revoked humanity.
+     *  @return expirationTime Expiration time of the revoked humanity.
      */
     function revokeManually(
         address _account
-    ) external override onlyCrossChain returns (uint40 expirationTime, bytes20 humanityId) {
+    ) external override onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
 
