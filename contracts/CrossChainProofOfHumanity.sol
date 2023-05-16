@@ -305,4 +305,25 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
                 humanity.owner == _owner &&
                 humanity.expirationTime > block.timestamp);
     }
+
+    function boundTo(bytes20 _humanityId) external view returns (address owner) {
+        owner = proofOfHumanity.boundTo(_humanityId);
+
+        if (owner == address(0x0)) {
+            CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+
+            if (humanity.expirationTime >= block.timestamp) owner = humanity.owner;
+        }
+    }
+
+    function humanityOf(address _account) external view returns (bytes20 humanityId) {
+        humanityId = proofOfHumanity.humanityOf(_account);
+
+        if (humanityId == bytes20(0x0)) {
+            humanityId = humans[_account];
+            CrossChainHumanity memory humanity = humanityMapping[humanityId];
+
+            if (humanity.owner != _account || block.timestamp > humanity.expirationTime) humanityId = bytes20(0x0);
+        }
+    }
 }

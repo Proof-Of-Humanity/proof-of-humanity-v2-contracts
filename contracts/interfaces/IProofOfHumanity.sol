@@ -14,6 +14,10 @@ interface IProofOfHumanity {
 
     function isHuman(address _address) external view returns (bool);
 
+    function boundTo(bytes20 _humanityId) external view returns (address);
+
+    function humanityOf(address _account) external view returns (bytes20 humanityId);
+
     function getHumanityInfo(
         bytes20 _humanityId
     )

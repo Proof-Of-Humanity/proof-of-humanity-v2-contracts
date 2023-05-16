@@ -1357,18 +1357,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _humanityId The id of the humanity.
      *  @return account The owner of the humanity.
      */
-    function boundTo(bytes20 _humanityId) external view returns (address) {
+    function boundTo(bytes20 _humanityId) external view override returns (address) {
         Humanity storage humanity = humanityMapping[_humanityId];
-        if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) return humanity.owner;
-        if (_getForkModule().isRegistered(address(_humanityId))) return address(_humanityId);
-        return address(0x0);
+        if (humanity.expirationTime >= block.timestamp) humanity.owner;
+        return (_getForkModule().isRegistered(address(_humanityId))) ? address(_humanityId) : address(0x0);
     }
 
     /** @notice Get the humanity corresponding to an address. Returns zero address if it corresponds to no humanity.
      *  @param _account The address to get the correspding humanity of.
      *  @return humanityId The humanity corresponding to the address.
      */
-    function humanityOf(address _account) public view returns (bytes20 humanityId) {
+    function humanityOf(address _account) public view override returns (bytes20 humanityId) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
         if (humanity.owner != _account || block.timestamp > humanity.expirationTime) {
