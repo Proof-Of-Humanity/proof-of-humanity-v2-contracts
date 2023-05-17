@@ -633,7 +633,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(!humanity.pendingRevocation);
         require(block.timestamp > humanity.lastFailedRevocationTime.addCap40(failedRevocationCooldown));
 
-        uint256 requestId = humanity.requests.length;
+        uint96 requestId = uint96(humanity.requests.length);
 
         Request storage request = humanity.requests.push();
         request.status = Status.Resolving;
@@ -657,7 +657,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         emit RevocationRequest(msg.sender, _humanityId, requestId, _evidence);
 
         if (bytes(_evidence).length > 0)
-            emit Evidence(arbitratorData.arbitrator, requestId + uint256(uint160(_humanityId)), msg.sender, _evidence);
+            emit Evidence(
+                arbitratorData.arbitrator,
+                uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
+                msg.sender,
+                _evidence
+            );
     }
 
     /** @notice Fund the requester's deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
@@ -849,7 +854,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function challengeRequest(
         bytes20 _humanityId,
-        uint256 _requestId,
+        uint96 _requestId,
         Reason _reason,
         string calldata _evidence
     ) external payable {
@@ -873,7 +878,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             request.currentReason = _reason;
         }
 
-        uint256 challengeId = request.lastChallengeId++;
+        uint96 challengeId = request.lastChallengeId++;
         Challenge storage challenge = request.challenges[challengeId];
         Round storage round = challenge.rounds[0];
 
@@ -892,14 +897,14 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         DisputeData storage disputeData = disputeIdToData[address(arbitratorData.arbitrator)][disputeId];
         disputeData.humanityId = _humanityId;
-        disputeData.requestId = uint96(_requestId);
-        disputeData.challengeId = uint96(challengeId);
+        disputeData.requestId = _requestId;
+        disputeData.challengeId = challengeId;
 
         request.status = Status.Disputed;
 
         emit RequestChallenged(_humanityId, _requestId, challengeId, _reason, disputeId, _evidence);
 
-        uint256 evidenceGroupId = _requestId + uint256(uint160(_humanityId));
+        uint256 evidenceGroupId = uint256(keccak256(abi.encodePacked(_humanityId, _requestId)));
 
         emit Dispute(
             arbitratorData.arbitrator,
@@ -1226,10 +1231,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requestId Id of request the evidence is related to.
      *  @param _evidence A link to an evidence using its URI.
      */
-    function submitEvidence(bytes20 _humanityId, uint256 _requestId, string calldata _evidence) external {
+    function submitEvidence(bytes20 _humanityId, uint96 _requestId, string calldata _evidence) external {
         emit Evidence(
             arbitratorDataList[humanityMapping[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
-            _requestId + uint256(uint160(_humanityId)),
+            uint256(keccak256(abi.encodePacked(_humanityId, _requestId))),
             msg.sender,
             _evidence
         );
@@ -1248,13 +1253,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _evidence A link to evidence using its URI.
      *  @return requestId Id of the created request.
      */
-    function _requestHumanity(bytes20 _humanityId, string calldata _evidence) internal returns (uint256 requestId) {
+    function _requestHumanity(bytes20 _humanityId, string calldata _evidence) internal returns (uint96 requestId) {
         // Human must not be in the process of claiming a humanity.
         require(humanityMapping[humans[msg.sender]].requestCount[msg.sender] == 0);
 
         Humanity storage humanity = humanityMapping[_humanityId];
 
-        requestId = humanity.requests.length;
+        requestId = uint96(humanity.requests.length);
 
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
@@ -1272,7 +1277,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         _contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost);
 
         if (bytes(_evidence).length > 0)
-            emit Evidence(arbitratorData.arbitrator, requestId + uint256(uint160(_humanityId)), msg.sender, _evidence);
+            emit Evidence(
+                arbitratorData.arbitrator,
+                uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
+                msg.sender,
+                _evidence
+            );
     }
 
     /** @notice Make a fee contribution.
