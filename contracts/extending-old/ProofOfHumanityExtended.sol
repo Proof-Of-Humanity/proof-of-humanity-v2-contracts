@@ -917,67 +917,75 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             emit Evidence(arbitratorData.arbitrator, evidenceGroupId, msg.sender, _evidence);
     }
 
-    /** @notice Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
+    /** @dev Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
      *
      *  @dev Emits {AppealCreated} event.
      *
      *  @dev Requirements:
      *  - Side funded must be either requester or challenger.
-     *  - Request must be disputed.
-     *  - Challenge id must be valid.
-     *  - Must be appeal period.
+     *  - Dispute must be in appeal period.
      *  - Appeal period must not be over for loser.
+     *  - Request must be disputed.
      *  - Must fund a non-funded side.
      *
-     *  @param _humanityId Id corresponding to humanity of which request to fund.
-     *  @param _requestId Id of the request.
-     *  @param _challengeId Index of a dispute, created for the request.
+     *  @param _arbitrator Address of the arbitrator used for the challenge.
+     *  @param _disputeId ID of the corresponding dispute.
      *  @param _side Recipient of the contribution.
      */
-    function fundAppeal(bytes20 _humanityId, uint256 _requestId, uint256 _challengeId, Party _side) external payable {
+    function fundAppeal(address _arbitrator, uint256 _disputeId, Party _side) external payable {
+        // You can only fund either the requester or the challenger.
         require(_side != Party.None);
-        Request storage request = humanityMapping[_humanityId].requests[_requestId];
-        require(request.status == Status.Disputed);
-        require(_challengeId < request.lastChallengeId);
 
-        Challenge storage challenge = request.challenges[_challengeId];
-        ArbitratorData storage arbitratorData = arbitratorDataList[request.arbitratorDataId];
-
-        (uint256 appealPeriodStart, uint256 appealPeriodEnd) = arbitratorData.arbitrator.appealPeriod(
-            challenge.disputeId
-        );
-        require(block.timestamp >= appealPeriodStart && block.timestamp < appealPeriodEnd);
+        (uint256 appealPeriodStart, uint256 appealPeriodEnd) = IArbitrator(_arbitrator).appealPeriod(_disputeId);
+        require(appealPeriodStart < block.timestamp && block.timestamp < appealPeriodEnd);
 
         uint256 multiplier;
-        Party winner = Party(arbitratorData.arbitrator.currentRuling(challenge.disputeId));
+        Party winner = Party(IArbitrator(_arbitrator).currentRuling(_disputeId));
         if (winner == _side) multiplier = winnerStakeMultiplier;
         else if (winner == Party.None) multiplier = sharedStakeMultiplier;
         else if (block.timestamp - appealPeriodStart < (appealPeriodEnd - appealPeriodStart) / 2)
             multiplier = loserStakeMultiplier;
+            // If half of appeal period passed and side funded is winner, it will revert
         else revert();
 
+        DisputeData memory disputeData = disputeIdToData[_arbitrator][_disputeId];
+        Request storage request = humanityMapping[disputeData.humanityId].requests[disputeData.requestId];
+        require(request.status == Status.Disputed);
+
+        Challenge storage challenge = request.challenges[disputeData.challengeId];
         Round storage round = challenge.rounds[challenge.lastRoundId];
+
         Party firstFunded = round.sideFunded;
         require(_side != firstFunded);
 
-        uint256 appealCost = arbitratorData.arbitrator.appealCost(
-            challenge.disputeId,
-            arbitratorData.arbitratorExtraData
+        uint256 appealCost = IArbitrator(_arbitrator).appealCost(
+            _disputeId,
+            arbitratorDataList[request.arbitratorDataId].arbitratorExtraData
         );
         uint256 totalCost = appealCost.addCap(appealCost.mulCap(multiplier) / _MULTIPLIER_DIVISOR);
 
-        if (_contribute(_humanityId, _requestId, _challengeId, challenge.lastRoundId, _side, totalCost)) {
-            if (firstFunded != Party.None) {
-                // Both sides are fully funded. Create an appeal.
-                arbitratorData.arbitrator.appeal{value: appealCost}(
-                    challenge.disputeId,
-                    arbitratorData.arbitratorExtraData
-                );
-                challenge.lastRoundId++;
-                round.feeRewards = round.feeRewards.subCap(appealCost);
+        if (
+            _contribute(
+                disputeData.humanityId,
+                disputeData.requestId,
+                disputeData.challengeId,
+                challenge.lastRoundId,
+                _side,
+                totalCost
+            ) &&
+            // If firstFunded was assigned, it means other side was funded and if this one gets fully funded as well appeal can be created.
+            firstFunded != Party.None
+        ) {
+            IArbitrator(_arbitrator).appeal{value: appealCost}(
+                _disputeId,
+                arbitratorDataList[request.arbitratorDataId].arbitratorExtraData
+            );
+            challenge.lastRoundId++;
 
-                emit AppealCreated(arbitratorData.arbitrator, challenge.disputeId);
-            }
+            // Subtract the costs from the total of staked contributions
+            round.feeRewards = round.feeRewards.subCap(appealCost);
+
+            emit AppealCreated(IArbitrator(_arbitrator), _disputeId);
         }
     }
 
