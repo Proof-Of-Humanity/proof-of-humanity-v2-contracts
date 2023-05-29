@@ -225,7 +225,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     event Initialized();
     event GovernorChanged(address governor);
     event RequestBaseDepositChanged(uint256 requestBaseDeposit);
-    event DurationsChanged(uint40 humanityLifespan, uint40 renewalPeriodDuration, uint40 challengePeriodDuration);
+    event DurationsChanged(
+        uint40 humanityLifespan,
+        uint40 renewalPeriodDuration,
+        uint40 challengePeriodDuration,
+        uint40 failedRevocationCooldown
+    );
     event RequiredNumberOfVouchesChanged(uint32 requiredNumberOfVouches);
     event StakeMultipliersChanged(uint256 sharedMultiplier, uint256 winnerMultiplier, uint256 loserMultiplier);
     event CrossChainProxyChanged(address crossChainProofOfHumanity);
@@ -449,6 +454,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _humanityLifespan The new lifespan of the time the humanity is considered registered.
      *  @param _renewalPeriodDuration The new value that defines the duration of the humanity's renewal period.
      *  @param _challengePeriodDuration The new duration of the challenge period. It should be lower than the time for a dispute.
+     *  @param _failedRevocationCooldown The new cooldown duration to be waited after failed transfer requests.
      */
     function changeDurations(
         uint40 _humanityLifespan,
@@ -460,7 +466,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         renewalPeriodDuration = _renewalPeriodDuration;
         challengePeriodDuration = _challengePeriodDuration;
         failedRevocationCooldown = _failedRevocationCooldown;
-        emit DurationsChanged(_humanityLifespan, _renewalPeriodDuration, _challengePeriodDuration);
+        emit DurationsChanged(
+            _humanityLifespan,
+            _renewalPeriodDuration,
+            _challengePeriodDuration,
+            _failedRevocationCooldown
+        );
     }
 
     /** @notice Change the number of vouches required for the request to pass beyond Vouching state.
