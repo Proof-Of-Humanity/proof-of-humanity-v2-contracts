@@ -579,8 +579,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(!isHuman(msg.sender));
         require(humanity.owner == address(0x0) || humanity.expirationTime < block.timestamp);
 
-        require(_getForkModule().hasLockedState(msg.sender));
-
         uint256 requestId = _requestHumanity(_humanityId, _evidence);
 
         emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
