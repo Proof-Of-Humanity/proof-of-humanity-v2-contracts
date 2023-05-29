@@ -401,7 +401,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(!humanity.vouching);
 
         delete humanity.owner;
-        delete humans[_account];
 
         emit HumanityRevokedManually(humanityId);
     }
@@ -708,7 +707,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.status == Status.Vouching);
 
         delete humanity.requestCount[msg.sender];
-        delete humans[msg.sender];
         request.status = Status.Resolved;
 
         // Automatically withdraw for the requester.
@@ -993,7 +991,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         if (request.revocation) {
             delete humanity.owner;
-            delete humans[humanity.owner];
             humanity.pendingRevocation = false;
 
             emit HumanityRevoked(_humanityId, _requestId);
@@ -1167,7 +1164,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
             if (resultRuling == Party.Requester) {
                 delete humanity.owner;
-                delete humans[humanity.owner];
 
                 emit HumanityRevoked(disputeData.humanityId, disputeData.requestId);
             } else humanity.lastFailedRevocationTime = uint40(block.timestamp);

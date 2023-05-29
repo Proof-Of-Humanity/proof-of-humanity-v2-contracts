@@ -411,7 +411,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             expirationTime = humanity.expirationTime;
 
             delete humanity.owner;
-            delete humans[_account];
         } else {
             humanityId = bytes20(_account);
 
@@ -737,7 +736,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.status == Status.Vouching);
 
         delete humanity.requestCount[msg.sender];
-        delete humans[msg.sender];
         request.status = Status.Resolved;
 
         // Automatically withdraw for the requester.
@@ -1023,7 +1021,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         if (request.revocation) {
             if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) {
                 delete humanity.owner;
-                delete humans[humanity.owner];
                 humanity.pendingRevocation = false;
 
                 // If not claimed in this contract, dirctly remove in fork module.
@@ -1206,7 +1203,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             if (resultRuling == Party.Requester) {
                 if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime)
                     delete humanity.owner;
-                    delete humans[humanity.owner];
                     // If not claimed in this contract, remove in fork module.
                 else _getForkModule().remove(address(disputeData.humanityId));
 
