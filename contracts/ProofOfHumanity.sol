@@ -31,22 +31,22 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== CONSTANTS ====== ///
 
-    /// @notice The amount of non 0 choices the arbitrator can give.
+    /// @dev The amount of non-zero choices the arbitrator can give.
     uint256 private constant _RULING_OPTIONS = 2;
 
-    /// @notice The number of vouches that will be automatically processed when executing a request.
+    /// @dev The number of vouches that will be automatically processed when executing a request.
     uint256 private constant _VOUCHES_TO_AUTOPROCESS = 10;
 
-    /// @notice Indicates that reasons' bitmap is full. 0b1111.
+    /// @dev Indicates that reasons' bitmap is full. 0b1111.
     uint256 private constant _FULL_REASONS_SET = 15;
 
-    /// @notice Divisor parameter for multipliers.
+    /// @dev Divisor parameter for multipliers.
     uint256 private constant _MULTIPLIER_DIVISOR = 10000;
 
-    /// @notice The EIP-712 domainSeparator specific to this deployed instance. It is used to verify the IsHumanVoucher's signature.
+    /// @dev The EIP-712 domainSeparator specific to this deployed instance. It is used to verify the IsHumanVoucher's signature.
     bytes32 private _DOMAIN_SEPARATOR;
 
-    /// @notice The EIP-712 typeHash of IsHumanVoucher. keccak256("IsHumanVoucher(address vouched,bytes20 humanityId,uint256 expirationTimestamp)").
+    /// @dev The EIP-712 typeHash of IsHumanVoucher == keccak256("IsHumanVoucher(address vouched,bytes20 humanityId,uint256 expirationTimestamp)").
     bytes32 private constant _IS_HUMAN_VOUCHER_TYPEHASH =
         0x396b8143cb24d01c85cbad0682e0e83f2ea427a5b3cd56872e8e1b2a55d4c2ab;
 
@@ -86,7 +86,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint16 nbPendingRequests; // Number of pending requests in challenging phase.
         bool vouching; // True if the human used its vouch for another human. This is set back to false once the vouch is processed.
         bool pendingRevocation; // True if the human is in the process of revocation.
-        mapping(address => uint256) requestCount; // Mapping of the claimer address to the number of requests at the moment of the claim.
+        mapping(address => uint256) requestCount; // Mapping of the claimer address to the total number of requests at the moment of the claim.
         Request[] requests; // Array of the ids to corresponding requests.
     }
 
@@ -134,7 +134,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     struct ArbitratorData {
-        uint96 metaEvidenceUpdates; // The meta evidence to be used in disputes.
+        uint96 metaEvidenceUpdates; // Reference to the meta evidence to be used in disputes.
         IArbitrator arbitrator; // Address of the trusted arbitrator to solve disputes.
         bytes arbitratorExtraData; // Extra data for the arbitrator.
     }
@@ -148,53 +148,54 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== STORAGE ====== ///
 
-    /// @notice Address of wrapped version of the chain's native currency. WETH-like.
+    /// @dev Address of wrapped version of the chain's native currency. WETH-like.
     address public wNative;
 
-    /// @notice Indicates that the contract has been initialized.
+    /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    /// @notice The address that can make governance changes to the parameters of the contract.
+    /// @dev The address that can make governance changes to the parameters of the contract.
     address public governor;
 
-    /// @notice The address of the CrossChainProofOfHumanity instance.
+    /// @dev The address of the CrossChainProofOfHumanity instance.
     address public crossChainProofOfHumanity;
 
-    /// @notice The base deposit to make a new request for a humanity.
+    /// @dev The base deposit to make a new request for a humanity.
     uint256 public requestBaseDeposit;
 
-    /// @notice Time after which the humanity will no longer be considered claimed. The human has to renew the humanity to refresh it.
+    /// @dev Time after which the humanity will no longer be considered claimed. The human has to renew the humanity to refresh it.
     uint40 public humanityLifespan;
-    /// @notice  The duration of the period when the registered humanity can be renewed.
+    /// @dev  The duration of the period when the registered humanity can be renewed.
     uint40 public renewalPeriodDuration;
-    /// @notice The time after which a request becomes executable if not challenged.
+    /// @dev The time after which a request becomes executable if not challenged.
     uint40 public challengePeriodDuration;
 
-    /// @notice The time after which a request becomes executable if not challenged.
+    /// @dev Cooldown after which a revocation request can be made after a previously failed one.
+    /// @dev Used to avoid exploiting revocation functionality to evade transfer requests.
     uint40 public failedRevocationCooldown;
 
-    /// @notice The number of registered users that have to vouch for a new claim request in order for it to advance beyond Vouching state.
+    /// @dev The number of registered users that have to vouch for a new claim request in order for it to advance beyond Vouching state.
     uint32 public requiredNumberOfVouches;
 
-    /// @notice Multiplier for calculating the fee stake that must be paid in the case where arbitrator refused to arbitrate.
+    /// @dev Multiplier for calculating the fee stake that must be paid in the case where arbitrator refused to arbitrate.
     uint256 public sharedStakeMultiplier;
-    /// @notice Multiplier for calculating the fee stake paid by the party that won the previous round.
+    /// @dev Multiplier for calculating the fee stake paid by the party that won the previous round.
     uint256 public winnerStakeMultiplier;
-    /// @notice Multiplier for calculating the fee stake paid by the party that lost the previous round.
+    /// @dev Multiplier for calculating the fee stake paid by the party that lost the previous round.
     uint256 public loserStakeMultiplier;
 
-    /// @notice Stores the arbitrator data of the contract. Updated each time the data is changed.
+    /// @dev Stores the arbitrator data of the contract. Updated each time the data is changed.
     ArbitratorData[] public arbitratorDataList;
 
-    /// @notice Maps the humanity id to the Humanity data. humanityMapping[humanityId].
+    /// @dev Maps the humanity id to the Humanity data. humanityMapping[humanityId].
     mapping(bytes20 => Humanity) private humanityMapping;
 
-    /// @notice Maps the address to human's humanityId. humans[address].
+    /// @dev Maps the address to human's humanityId. humans[address].
     mapping(address => bytes20) private humans;
 
-    /// @notice Indicates whether or not the voucher has vouched for a certain human. vouches[voucherAccount][vouchedHumanId][humanityId].
+    /// @dev Indicates whether or not the voucher has vouched for a certain human. vouches[voucherAccount][vouchedHumanId][humanityId].
     mapping(address => mapping(address => mapping(bytes20 => bool))) public vouches;
-    /// @notice Maps a dispute Id with its data. disputeIdToData[arbitrator][disputeId].
+    /// @dev Maps a dispute Id with its data. disputeIdToData[arbitrator][disputeId].
     mapping(address => mapping(uint256 => DisputeData)) public disputeIdToData;
 
     /* Modifiers */
@@ -339,16 +340,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GOVERNANCE ====== ///
 
-    /** @notice Manually grant humanity via cross-chain instance.
+    /** @dev Manually grant humanity via cross-chain instance.
+     *  @dev Returns whether humanity was not claimed (thus granted successfully) for better interaction with CrossChainPoH instance.
      *
      *  @dev Emits {HumanityGrantedManually} event.
      *
      *  @dev Requirements:
      *  - Human must not be in the process of claiming a humanity.
-     *  - Humanity must not be claimed.
      *
      *  @param _humanityId Unique id to be added.
-     *  @param _account Address owner corresponding to the humanity.
+     *  @param _account Address of account corresponding to the humanity.
      *  @param _expirationTime Expiration time of the newly added humanity.
      *  @return success Whether the humanity was successfully granted.
      */
@@ -359,6 +360,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     ) external override onlyCrossChain returns (bool success) {
         Humanity storage humanity = humanityMapping[_humanityId];
 
+        // If humanity is claimed, don't overwrite.
         if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) return false;
 
         // Must not be in the process of claiming a humanity.
@@ -373,18 +375,19 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         return true;
     }
 
-    /** @notice Directly revoke a humanity via cross-chain instance.
+    /** @dev Directly revoke a humanity via cross-chain instance.
+     *  @dev Returns humanityId and expirationTime for better interaction with CrossChainPoH instance.
      *
      *  @dev Emits {HumanityRevokedManually} event.
      *
      *  @dev Requirements:
-     *  - HumanityId must be claimed by someone.
      *  - Owner of the humanity must be _account.
+     *  - HumanityId must not be expired.
      *  - Humanity must have no pending requests.
      *  - Humanity must not be vouching at the moment.
      *
-     *  @param _account Human corresponding to the humanity to be revoked.
-     *  @return humanityId Unique id corresponding to the revoked humanity.
+     *  @param _account Wallet address corresponding to the humanity to be revoked.
+     *  @return humanityId Humanity ID to be revoked.
      *  @return expirationTime Expiration time of the revoked humanity.
      */
     function revokeManually(
@@ -405,7 +408,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit HumanityRevokedManually(humanityId);
     }
 
-    /** @notice Change the governor of the contract.
+    /** @dev Change the governor of the contract.
      *
      *  @dev Emits {GovernorChanged} event.
      *
@@ -416,7 +419,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit GovernorChanged(_governor);
     }
 
-    /** @notice Change the base amount required as a deposit to make a request for a humanity.
+    /** @dev Change the base amount required as a deposit to make a request for a humanity.
      *
      *  @dev Emits {RequestBaseDepositChanged} event.
      *
@@ -427,7 +430,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit RequestBaseDepositChanged(_requestBaseDeposit);
     }
 
-    /** @notice Change the duration of the humanity lifespan, renewal and challenge periods.
+    /** @dev Change the duration of the humanity lifespan, renewal and challenge periods.
      *
      *  @dev Emits {DurationsChanged} event.
      *
@@ -457,7 +460,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         );
     }
 
-    /** @notice Change the number of vouches required for the request to pass beyond Vouching state.
+    /** @dev Change the number of vouches required for the request to pass beyond Vouching state.
      *
      *  @dev Emits {RequiredNumberOfVouchesChanged} event.
      *
@@ -468,7 +471,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit RequiredNumberOfVouchesChanged(_requiredNumberOfVouches);
     }
 
-    /** @notice Change the proportion of arbitration fees that must be paid as fee stake by parties depending on the result of the dispute (e.g. when the arbitrator refused to rule).
+    /** @dev Change the proportion of arbitration fees that must be paid as fee stake by parties depending on the result of the dispute (e.g. when the arbitrator refused to rule).
      *
      *  @dev Emits {StakeMultipliersChanged} event.
      *
@@ -487,7 +490,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit StakeMultipliersChanged(_sharedStakeMultiplier, _winnerStakeMultiplier, _loserStakeMultiplier);
     }
 
-    /** @notice Update the meta evidence used for disputes.
+    /** @dev Update the meta evidence used for disputes.
      *
      *  @dev Emits {MetaEvidence} event for the registration meta evidence.
      *  @dev Emits {MetaEvidence} event for the clearing meta evidence.
@@ -512,7 +515,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit MetaEvidence(2 * newMetaEvidenceUpdates + 1, _clearingMetaEvidence);
     }
 
-    /** @notice Change the arbitrator to be used for disputes that may be raised in the next requests. The arbitrator is trusted to support appeal period and not reenter.
+    /** @dev Change the arbitrator to be used for disputes that may be raised in the next requests. The arbitrator is trusted to support appeal period and not reenter.
      *
      *  @dev Emits {ArbitratorChanged} event.
      *
@@ -531,7 +534,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit ArbitratorChanged(_arbitrator, _arbitratorExtraData);
     }
 
-    /** @notice Change the cross-chain instance.
+    /** @dev Change the cross-chain instance.
      *
      *  @dev Emits {CrossChainProxyChanged} event.
      *
@@ -544,16 +547,17 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== REQUESTS ====== ///
 
-    /** @notice Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
+    /** @dev Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {ClaimRequest} event.
      *
      *  @dev Requirements:
+     *  - Humanity ID not null.
      *  - Sender must not own a humanity.
-     *  - Humanity corresponding to _humanityId must not be claimed (can be expired).
+     *  - Humanity corresponding to _humanityId must not be claimed (either no owner or expired).
      *  - Sender must not be in the process of claiming a humanity (covered by _requestHumanity).
      *
-     *  @param _humanityId The humanity id the human applies for.
+     *  @param _humanityId The humanity ID the human applies for.
      *  @param _evidence Link to evidence using its URI.
      *  @param _name Name of the human.
      */
@@ -562,15 +566,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         require(_humanityId != 0);
         require(!isHuman(msg.sender));
-        require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
+        require(humanity.owner == address(0x0) || humanity.expirationTime < block.timestamp);
 
         uint256 requestId = _requestHumanity(_humanityId, _evidence);
 
         emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
     }
 
-    /** @notice Make a request to renew humanity's lifespan. Paying the full deposit right away is not required as it can be crowdfunded later.
-     *  @notice The user can reapply even when current lifespan has not expired, but only after the start of renewal period.
+    /** @dev Make a request to renew humanity's lifespan.
+     *  @dev The user can reapply even when current lifespan has not expired, but only after the start of renewal period.
+     *  @notice Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {RenewalRequest} event.
      *
@@ -594,16 +599,17 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit RenewalRequest(msg.sender, humanityId, requestId, _evidence);
     }
 
-    /** @notice Make a request to revoke a humanity.
-     *  @notice Accepts enough ETH to cover the deposit, reimburses the rest.
-     *  @notice Status of the humanity can be anything to avoid blocking revocations.
+    /** @dev Make a request to revoke a humanity.
+     *  @dev Accepts enough ETH to cover the deposit, reimburses the rest.
+     *  @dev Only one revocation possible at a time.
      *
      *  @dev Emits {RevocationRequest} event.
      *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
      *  - Humanity must be claimed by someone and not expired.
-     *  - Humanity must not be pending revocation.
+     *  - Humanity must not be pending any revocation.
+     *  - The cooldown for failed revocation must have passed since last failed revocation.
      *  - Deposit must be fully paid.
      *
      *  @param _humanityId The id of the humanity to revoke.
@@ -651,10 +657,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @notice Fund the requester's deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
      *
      *  @dev Requirements:
-     *  - Human must be in the process of claiming a humanity and the request is in Vouching state.
+     *  - Corresponding request is in Vouching state.
      *
-     *  @param _humanityId The humanityId corresponding to the request to fund.
-     *  @param _requestId The id of the request to fund.
+     *  @param _humanityId The humanity ID corresponding to the request to fund.
+     *  @param _requestId The request to fund.
      */
     function fundRequest(bytes20 _humanityId, uint256 _requestId) external payable {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
@@ -680,7 +686,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit VouchAdded(msg.sender, _account, _humanityId);
     }
 
-    /** @notice Remove a previously added vouch. Note that the event spam is not an issue as it will be handled by the UI.
+    /** @notice Remove a previously added vouch.
      *
      *  @dev Emits {VouchRemoved} event.
      *
@@ -715,23 +721,23 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit RequestWithdrawn(humanityId, requestId);
     }
 
-    /** @notice Change human's phase from Vouching to Resolving if all conditions are met.
+    /** @dev Advance the request from Vouching to Resolving state if all conditions are met.
      *
      *  @dev Emits {VouchRegistered} event.
      *  @dev Emits {StateAdvanced} event.
      *
      *  @dev Requirements:
      *  - Request must be in Vouching state.
-     *  - Humanity must not be claimed.
+     *  - Humanity must not be claimed (or is in renewal period).
      *  - Requester must have the deposit covered.
      *  - Provided signatures must be valid.
      *  - Number of aggregated vouches must be at least required number of vouches.
      *
      *  @dev EIP-712:
      *  struct IsHumanVoucher {
-     *      address vouchedHuman;
-     *      bytes20 vouchedForHumanity;
-     *      uint256 voucherExpirationTimestamp;
+     *      address vouched;
+     *      bytes20 humanityId;
+     *      uint256 expirationTimestamp;
      *  }
      *
      *  @param _claimer The address of the human whose request status to advance.
@@ -760,9 +766,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 i;
         bool isValid;
 
+        // Iterate over both vouches arrays until accumulating the required number of valid vouches
+        // If both arrays ends' have been reached and not enough valid vouches have been given, it will revert on overflow
         while (request.vouches.length < requiredVouches) {
             if (i < nbSignatureVouches) {
                 SignatureVouch memory signature = _signatureVouches[i];
+
+                // Used OZ check https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/ECDSA.sol#L125-L136
                 require(signature.s <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0);
 
                 voucherAccount = ecrecover(
@@ -789,6 +799,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             }
 
             if (isValid) {
+                // If voucherAccount is null, voucherHumanityId will be null too which cannot be claimed (so it will fail the conditions)
                 bytes20 voucherHumanityId = humans[voucherAccount];
                 voucherHumanity = humanityMapping[voucherHumanityId];
                 if (
@@ -800,6 +811,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                     request.vouches.push(voucherHumanityId);
                     voucherHumanity.vouching = true;
 
+                    // Emit event to signal the processing of the signature vouch (and the on-chain as well)
                     emit VouchRegistered(voucherHumanityId, humanityId, requestId);
                 }
             }
@@ -816,16 +828,14 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit StateAdvanced(_claimer);
     }
 
-    /** @notice Challenge the human's request. Accept enough ETH to cover the deposit, reimburse the rest.
+    /** @dev Challenge the human's request. Accept enough ETH to cover the deposit, reimburse the rest.
      *
      *  @dev Emits {RequestChallenged} event.
      *  @dev Emits {Dispute} event.
      *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
-     *  - Humanity must be in claiming/revoking phase.
-     *  - If there is a revocation request, reason must be None.
-     *  - If there is a claim request, reason must not be None.
+     *  - If it's a revocation request, reason must be None. If it's a claim request, reason must not be None.
      *  - Request must be in resolving state.
      *  - Must be challenge period for the request.
      *  - Reason must not have been used for this request.
@@ -843,10 +853,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         string calldata _evidence
     ) external payable {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
+        // If request is for revocation request reason must be None, otherwise must be not None
         require(request.revocation == (_reason == Reason.None));
         require(request.status == Status.Resolving);
         require(block.timestamp < request.challengePeriodStart + challengePeriodDuration);
 
+        // Only check used reasons on claim requests
         if (!request.revocation) {
             // Get the bit that corresponds with reason's index.
             uint8 reasonBit;
@@ -868,7 +880,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         ArbitratorData memory arbitratorData = arbitratorDataList[request.arbitratorDataId];
         uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
+
         require(_contribute(_humanityId, _requestId, challengeId, 0, Party.Challenger, arbitrationCost));
+
+        // Subtract the costs from the total of staked contributions.
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
 
         uint256 disputeId = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
@@ -888,6 +903,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         emit RequestChallenged(_humanityId, _requestId, challengeId, _reason, disputeId, _evidence);
 
+        // Hash evidenceGroupId to make sure it's unique.
         uint256 evidenceGroupId = uint256(keccak256(abi.encodePacked(_humanityId, _requestId)));
 
         emit Dispute(
@@ -973,7 +989,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         }
     }
 
-    /** @notice Execute a request if the challenge period passed and no one challenged the request.
+    /** @dev Execute a request if the challenge period passed and request has not been successfully challenged.
      *
      *  @dev Emits {HumanityClaimed} event.
      *  @dev Emits {HumanityRevoked} event.
@@ -1012,8 +1028,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         withdrawFeesAndRewards(request.requester, _humanityId, _requestId, 0, 0); // Automatically withdraw for the requester.
     }
 
-    /** @notice Process vouches of the resolved request, so vouchings of users who vouched for it can be used for other humans.
-     *  @notice Users who vouched for bad humanity requests are penalized.
+    /** @dev Process vouches of the resolved request, so vouchings of users who vouched for it can be used for other humans.
+     *  @dev Profiles who vouched for successfully challenged claim requests are penalized.
      *
      *  @dev Emits {VouchesProcessed} event.
      *  @dev Emits {HumanityRevokedManually} event.
@@ -1036,14 +1052,16 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         if (endIndex > vouchCount) endIndex = vouchCount;
 
         Reason currentReason = request.currentReason;
+        // Penalty is applied for sybil attacks.
         bool applyPenalty = request.ultimateChallenger != address(0x0) &&
             (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
 
         while (lastProcessed < endIndex) {
             Humanity storage voucherHumanity = humanityMapping[request.vouches[lastProcessed]];
             voucherHumanity.vouching = false;
+
             if (applyPenalty) {
-                // Check the situation when vouching address is in the middle of renewal process.
+                // Situation when vouching address is in the middle of renewal process.
                 uint256 voucherRequestId = voucherHumanity.requestCount[voucherHumanity.owner] - 1;
                 if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].punishedVouch = true;
 
@@ -1062,7 +1080,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit VouchesProcessed(_humanityId, _requestId, endIndex);
     }
 
-    /** @notice Reimburse contributions if no disputes were raised. If a dispute was raised, send the fee stake rewards and reimbursements proportionally to the contributions made to the winner of a dispute.
+    /** @dev Reimburse contributions if no disputes were raised.
+     *  @dev If a dispute was raised, send the fee stake rewards and reimbursements proportionally to the contributions made to the winner of a dispute.
      *
      *  @dev Emits {FeesAndRewardsWithdrawn} event.
      *
@@ -1094,7 +1113,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         ContributionsSet storage beneficiaryContributions = round.contributions[_beneficiary];
         if (_round != 0 && _round == challenge.lastRoundId) {
             // Reimburse the payment if the last round wasn't fully funded.
-            // Note that the 0 round is always considered funded if there is a challenge. If there was no challenge the requester will be reimbursed with the subsequent condition, since the ruling will be Party.None.
+            // Note that the 0 round is always considered funded if there is a challenge.
+            // If there was no challenge the requester will be reimbursed with the subsequent condition, since the ruling will be Party.None.
             reward = beneficiaryContributions.forRequester + beneficiaryContributions.forChallenger;
         } else if (ruling == Party.None) {
             uint256 totalFeesInRound = round.paidFees.forChallenger + round.paidFees.forRequester;
@@ -1207,9 +1227,6 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @dev Emits {Evidence} event.
      *
-     *  @dev Requirements:
-     *  - Must be valid request.
-     *
      *  @param _humanityId Id of humanity the request is for.
      *  @param _requestId Id of request the evidence is related to.
      *  @param _evidence A link to an evidence using its URI.
@@ -1250,6 +1267,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 arbitratorDataId = arbitratorDataList.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
 
+        // Use requestCount like this in order to avoid having referencing the claimer's pending request as 0 at any point.
         humanity.requestCount[msg.sender] = requestId + 1;
         humans[msg.sender] = _humanityId;
 
@@ -1268,10 +1286,10 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             );
     }
 
-    /** @notice Make a fee contribution.
-     *  @param _humanityId .
-     *  @param _requestId .
-     *  @param _challengeId .
+    /** @dev Make a fee contribution. Reimburse remaining ETH.
+     *  @param _humanityId Humanity ID corresponding to the request.
+     *  @param _requestId Request corresponding to the round.
+     *  @param _challengeId Challenge corresponding to the round.
      *  @param _roundId Round to contribute to.
      *  @param _side Side to contribute to.
      *  @param _totalRequired Total amount required for this side.
@@ -1327,9 +1345,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         return humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime;
     }
 
-    /** @notice Return true if the human has a claimed humanity.
-     *  @param _account The address of the human.
-     *  @return Whether the human has a valid humanity.
+    /** @notice Check whether the account corresponds to a claimed humanity.
+     *  @param _account The account address.
+     *  @return Whether the account has a valid humanity.
      */
     function isHuman(address _account) public view override returns (bool) {
         Humanity storage humanity = humanityMapping[humans[_account]];
@@ -1345,7 +1363,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         return block.timestamp < humanity.expirationTime ? humanity.owner : address(0x0);
     }
 
-    /** @notice Get the humanity corresponding to an address. Returns zero address if it corresponds to no humanity.
+    /** @notice Get the humanity corresponding to an address. Returns zero if it corresponds to no humanity.
      *  @param _account The address to get the correspding humanity of.
      *  @return humanityId The humanity corresponding to the address.
      */
