@@ -755,11 +755,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         address voucherAccount;
         Humanity storage voucherHumanity;
-        uint256 i = 0;
         uint256 requiredVouches = requiredNumberOfVouches;
+        uint256 nbSignatureVouches = _signatureVouches.length;
+        uint256 i;
+        bool isValid;
+
         while (request.vouches.length < requiredVouches) {
-            bool isValid;
-            if (i < _signatureVouches.length) {
+            if (i < nbSignatureVouches) {
                 SignatureVouch memory signature = _signatureVouches[i];
                 require(signature.s <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0);
 
@@ -781,7 +783,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                 isValid = block.timestamp < signature.expirationTime;
             } else {
                 // Overflows if the end of _vouches has been reached and not enough valid vouches were gathered.
-                voucherAccount = _vouches[i - _signatureVouches.length];
+                voucherAccount = _vouches[i - nbSignatureVouches];
 
                 isValid = vouches[voucherAccount][_claimer][humanityId];
             }
@@ -890,7 +892,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         emit Dispute(
             arbitratorData.arbitrator,
-            challenge.disputeId,
+            disputeId,
             2 * arbitratorData.metaEvidenceUpdates + (request.revocation ? 1 : 0),
             evidenceGroupId
         );
@@ -1088,7 +1090,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(_beneficiary != address(0x0));
 
         Party ruling = challenge.ruling;
-        uint256 reward = 0;
+        uint256 reward;
         ContributionsSet storage beneficiaryContributions = round.contributions[_beneficiary];
         if (_round != 0 && _round == challenge.lastRoundId) {
             // Reimburse the payment if the last round wasn't fully funded.
@@ -1287,7 +1289,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             _roundId
         ];
 
-        uint256 remainingETH = 0;
+        uint256 remainingETH;
         uint256 contribution = msg.value;
         uint256 requiredAmount = _totalRequired.subCap(
             _side == Party.Requester ? round.paidFees.forRequester : round.paidFees.forChallenger
