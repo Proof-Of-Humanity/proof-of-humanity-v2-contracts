@@ -1178,8 +1178,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _ruling Ruling given by the arbitrator.
      */
     function rule(uint256 _disputeId, uint256 _ruling) external override {
-        Party resultRuling = Party(_ruling);
-        DisputeData storage disputeData = disputeIdToData[msg.sender][_disputeId];
+        DisputeData memory disputeData = disputeIdToData[msg.sender][_disputeId];
         Humanity storage humanity = humanityMapping[disputeData.humanityId];
         Request storage request = humanity.requests[disputeData.requestId];
         Challenge storage challenge = request.challenges[disputeData.challengeId];
@@ -1188,6 +1187,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(address(arbitratorDataList[request.arbitratorDataId].arbitrator) == msg.sender);
         require(request.status == Status.Disputed);
 
+        Party resultRuling = Party(_ruling);
         // The ruling is inverted if the loser paid its fees.
         if (round.sideFunded == Party.Requester)
             // If one side paid its fees, the ruling is in its favor. Note that if the other side had also paid, an appeal would have been created.
