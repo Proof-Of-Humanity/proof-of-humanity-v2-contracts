@@ -360,7 +360,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         if (
-            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+            (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
             // If not claimed in this contract, check in fork module too.
             _getForkModule().isRegistered(_account)
         ) return false;
@@ -398,7 +398,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[humanityId];
         require(humanity.nbPendingRequests == 0);
 
-        if (humanity.owner == _account && humanity.expirationTime >= block.timestamp) {
+        if (humanity.owner == _account && block.timestamp < humanity.expirationTime) {
             require(humanity.expirationTime >= block.timestamp);
             require(humanity.owner == _account);
             require(!humanity.vouching);
@@ -577,7 +577,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         require(_humanityId != 0);
         require(!isHuman(msg.sender));
-        require(humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime);
+        require(humanity.owner == address(0x0) || humanity.expirationTime < block.timestamp);
 
         require(_getForkModule().hasLockedState(msg.sender));
 
@@ -604,7 +604,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[humanityId];
 
         require(humanity.owner == msg.sender);
-        require(block.timestamp > humanity.expirationTime.subCap40(renewalPeriodDuration));
+        require(humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
 
         uint256 requestId = _requestHumanity(humanityId, _evidence);
 
@@ -630,12 +630,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         require(
-            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+            (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
                 // If not claimed on this contract check on V1.
                 _getForkModule().isRegistered(address(_humanityId))
         );
         require(!humanity.pendingRevocation);
-        require(block.timestamp > humanity.lastFailedRevocationTime.addCap40(failedRevocationCooldown));
+        require(humanity.lastFailedRevocationTime.addCap40(failedRevocationCooldown) < block.timestamp);
 
         uint96 requestId = uint96(humanity.requests.length);
 
@@ -771,7 +771,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanity.requests[requestId];
         require(request.status == Status.Vouching);
         require(
-            humanity.owner == address(0x0) || block.timestamp > humanity.expirationTime.subCap40(renewalPeriodDuration)
+            humanity.owner == address(0x0) || humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp
         );
         require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
@@ -865,7 +865,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         require(request.revocation == (_reason == Reason.None));
         require(request.status == Status.Resolving);
-        require(request.challengePeriodStart + challengePeriodDuration >= uint40(block.timestamp));
+        require(block.timestamp < request.challengePeriodStart + challengePeriodDuration);
 
         if (!request.revocation) {
             // Get the bit that corresponds with reason's index.
@@ -1009,10 +1009,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityMapping[_humanityId];
         Request storage request = humanity.requests[_requestId];
         require(request.status == Status.Resolving);
-        require(request.challengePeriodStart + challengePeriodDuration < uint40(block.timestamp));
+        require(request.challengePeriodStart + challengePeriodDuration < block.timestamp);
 
         if (request.revocation) {
-            if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) {
+            if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) {
                 delete humanity.owner;
                 delete humans[humanity.owner];
                 humanity.pendingRevocation = false;
@@ -1069,8 +1069,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             Humanity storage voucherHumanity = humanityMapping[voucherHumanityId];
             voucherHumanity.vouching = false;
             if (applyPenalty) {
-                if (voucherHumanity.owner != address(0x0) && voucherHumanity.expirationTime >= block.timestamp) {
-                    // Check the situation when vouching address is in the middle of renewal process.
+                // Situation when vouching address is in the middle of renewal process.
+                if (voucherHumanity.owner != address(0x0) && block.timestamp < voucherHumanity.expirationTime) {
                     uint256 voucherRequestId = voucherHumanity.requestCount[voucherHumanity.owner] - 1;
                     if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].punishedVouch = true;
 
@@ -1195,7 +1195,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             humanity.pendingRevocation = false;
 
             if (resultRuling == Party.Requester) {
-                if (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) {
+                if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime)
                     delete humanity.owner;
                     delete humans[humanity.owner];
                     // If not claimed in this contract, remove in fork module.
@@ -1365,7 +1365,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function isClaimed(bytes20 _humanityId) external view override returns (bool) {
         Humanity storage humanity = humanityMapping[_humanityId];
         return
-            (humanity.owner != address(0x0) && humanity.expirationTime >= block.timestamp) ||
+            (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
             _getForkModule().isRegistered(address(_humanityId));
     }
 
@@ -1376,7 +1376,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function isHuman(address _account) public view override returns (bool) {
         Humanity storage humanity = humanityMapping[humans[_account]];
         return
-            (humanity.owner == _account && humanity.expirationTime >= block.timestamp) ||
+            (humanity.owner == _account && block.timestamp < humanity.expirationTime) ||
             _getForkModule().isRegistered(_account);
     }
 
@@ -1386,7 +1386,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function boundTo(bytes20 _humanityId) external view override returns (address) {
         Humanity storage humanity = humanityMapping[_humanityId];
-        if (humanity.expirationTime >= block.timestamp) humanity.owner;
+        if (block.timestamp < humanity.expirationTime) return humanity.owner;
         return (_getForkModule().isRegistered(address(_humanityId))) ? address(_humanityId) : address(0x0);
     }
 
@@ -1397,7 +1397,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function humanityOf(address _account) public view override returns (bytes20 humanityId) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
-        if (humanity.owner != _account || block.timestamp > humanity.expirationTime) {
+        if (humanity.owner != _account || humanity.expirationTime < block.timestamp) {
             if (_getForkModule().isRegistered(_account)) humanityId = bytes20(_account);
             else humanityId = bytes20(0x0);
         }
