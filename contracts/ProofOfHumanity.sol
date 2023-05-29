@@ -35,7 +35,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 private constant _RULING_OPTIONS = 2;
 
     /// @notice The number of vouches that will be automatically processed when executing a request.
-    uint256 private constant _AUTO_PROCESSED_VOUCH = 10;
+    uint256 private constant _VOUCHES_TO_AUTOPROCESS = 10;
 
     /// @notice Indicates that reasons' bitmap is full. 0b1111.
     uint256 private constant _FULL_REASONS_SET = 15;
@@ -1007,7 +1007,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         request.status = Status.Resolved;
         delete humanity.requestCount[request.requester];
 
-        if (request.vouches.length != 0) processVouches(_humanityId, _requestId, _AUTO_PROCESSED_VOUCH);
+        if (request.vouches.length != 0) processVouches(_humanityId, _requestId, _VOUCHES_TO_AUTOPROCESS);
 
         withdrawFeesAndRewards(request.requester, _humanityId, _requestId, 0, 0); // Automatically withdraw for the requester.
     }
