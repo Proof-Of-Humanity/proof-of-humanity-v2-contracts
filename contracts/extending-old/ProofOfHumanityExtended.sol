@@ -404,8 +404,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(humanity.nbPendingRequests == 0);
 
         if (humanity.owner == _account && block.timestamp < humanity.expirationTime) {
-            require(humanity.expirationTime >= block.timestamp);
-            require(humanity.owner == _account);
             require(!humanity.vouching);
 
             expirationTime = humanity.expirationTime;
