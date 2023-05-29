@@ -9,53 +9,12 @@
 pragma solidity 0.8.18;
 
 import {CappedMath} from "../libraries/CappedMath.sol";
+import {IForkModule} from "../interfaces/IForkModule.sol";
+import {IProofOfHumanityOld} from "../interfaces/IProofOfHumanityOld.sol";
 
-enum OldStatus {
-    None, // The submission doesn't have a pending status.
-    Vouching, // The submission is in the state where it can be vouched for and crowdfunded.
-    PendingRegistration, // The submission is in the state where it can be challenged. Or accepted to the list, if there are no challenges within the time limit.
-    PendingRemoval // The submission is in the state where it can be challenged. Or removed from the list, if there are no challenges within the time limit.
-}
-
-interface IProofOfHumanityOld {
-    /* Views */
-
-    function submissionDuration() external view returns (uint64);
-
-    function isRegistered(address _submissionID) external view returns (bool);
-
-    function getSubmissionInfo(
-        address _submissionID
-    )
-        external
-        view
-        returns (
-            OldStatus status,
-            uint64 submissionTime,
-            uint64 index,
-            bool registered,
-            bool isVouching,
-            uint256 numberOfRequests
-        );
-}
-
-interface IForkModule {
-    function removeFromRequest(address _submissionID) external returns (bool);
-
-    function removeForTransfer(address _submissionID) external returns (uint40);
-
-    function isRegistered(address _submissionID) external view returns (bool);
-
-    function hasLockedState(address _submissionID) external view returns (bool);
-
-    function vouchReady(address _submissionID) external view returns (bool);
-
-    function removalReady(address _submissionID) external view returns (bool);
-
-    function getSubmissionInfo(address _submissionID) external view returns (bool registered, uint40 expirationTime);
-}
-
-/** PoHV2 functions which interact with the old PoH contract.
+/** @title ForkModule
+ *
+ *  PoHV2 functions which interact with the old PoH contract.
  *  * -> Part of process of potential removal   |   *** -> Includes removal
  *  grantManually
  *  revokeManually ***
@@ -66,7 +25,6 @@ interface IForkModule {
  *  processVouches ***
  *  rule           ***
  */
-
 contract ForkModule is IForkModule {
     using CappedMath for uint40;
 
@@ -75,11 +33,19 @@ contract ForkModule is IForkModule {
     /// @dev Indicates that the contract has been initialized.
     bool public initialized;
 
-    IProofOfHumanityOld public oldProofOfHumanity;
+    /// @dev PoH v1 contract instance.
+    IProofOfHumanityOld public proofOfHumanityV1;
+
+    /// @dev Address of PoH v2 contract instance.
     address public proofOfHumanityV2;
 
+    /// @dev The submissionDuration fetched from PoH v1 at the initialization of this contract.
     uint40 public submissionDuration;
 
+    /// @dev The time when the fork is considered as started.
+    uint40 public forkTime;
+
+    /// @dev The removed flag used to overwrite the v1 submission status.
     mapping(address => bool) public removed;
 
     modifier initializer() {
@@ -89,138 +55,84 @@ contract ForkModule is IForkModule {
     }
 
     modifier onlyV2() {
-        require(msg.sender == address(proofOfHumanityV2), "!V2");
+        require(msg.sender == address(proofOfHumanityV2), "!poh");
         _;
     }
 
-    /// ====== CONSTRUCTION ====== ///
+    /// ====== CONSTRUCTOR ====== ///
 
-    function initialize(address _proofOfHumanityV2, address _oldProofOfHumanity) public initializer {
+    /** @notice Initializes the ForkModule contract.
+     *  @param _proofOfHumanityV1 The address of the PoH v1 contract.
+     *  @param _proofOfHumanityV2 The address of the PoH v2 contract.
+     */
+    function initialize(address _proofOfHumanityV1, address _proofOfHumanityV2) public initializer {
+        proofOfHumanityV1 = IProofOfHumanityOld(_proofOfHumanityV1);
         proofOfHumanityV2 = _proofOfHumanityV2;
-        oldProofOfHumanity = IProofOfHumanityOld(_oldProofOfHumanity);
-        submissionDuration = uint40(oldProofOfHumanity.submissionDuration());
+
+        forkTime = uint40(block.timestamp);
+
+        submissionDuration = uint40(proofOfHumanityV1.submissionDuration());
     }
 
     /// ====== FUNCTIONS ====== ///
 
-    /** @dev Marks a submission as removed. Should not revert.
-     *  @dev Called when removing as result of revocation request or bad vouching.
+    /** @dev Directly mark a submission as removed.
+     *  @dev Called when removing as result of finalized revocation request or bad vouching.
      *
-     *  @param _submissionID The address of the submission to remove.
-     *  @return Whether the submission was successfully removed.
+     *  @param _submissionID The address of the submission to mark as removed.
      */
-    function removeFromRequest(address _submissionID) external override onlyV2 returns (bool) {
-        if (removed[_submissionID]) return false;
-
-        (, , , bool registered, , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
-
-        if (registered) {
-            //? && status <= OldStatus.Vouching
-            removed[_submissionID] = true;
-
-            return true;
-        }
-
-        return false;
+    function remove(address _submissionID) external override onlyV2 {
+        removed[_submissionID] = true;
     }
 
     /** @dev Remove a submission because of a transfer request. Should revert in case of not meeting conditions.
+     *  @dev Returns expirationTime for better interaction with PoHv2 instance.
      *
      *  @dev Requirements:
      *  - Submission must be registered in v1.
-     *  - Must have a locked state (None/Vouching).
-     *  - Must not be vouching.
      *
      *  @param _submissionID Address corresponding to the human.
-     *  @return expirationTime Expiration time of the revoked humanity.
+     *  @return expirationTime Expiration time of the revoked humanity. Used for.
      */
-    function removeForTransfer(address _submissionID) external override onlyV2 returns (uint40 expirationTime) {
-        require(!removed[_submissionID], "!removed");
+    function tryRemove(address _submissionID) external override onlyV2 returns (uint40 expirationTime) {
+        require(!removed[_submissionID], "removed!");
 
-        (OldStatus status, uint64 submissionTime, , bool registered, bool isVouching, ) = oldProofOfHumanity
-            .getSubmissionInfo(_submissionID);
+        (, uint64 submissionTime, , bool registered, , ) = proofOfHumanityV1.getSubmissionInfo(_submissionID);
 
         expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
-        require(
-            registered && expirationTime > block.timestamp && status <= OldStatus.Vouching && !isVouching,
-            "!transfer"
-        );
+        require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "registered!");
 
         removed[_submissionID] = true;
     }
 
     /// ====== VIEWS ====== ///
 
-    /** @notice Check if a submission has a locked state.
-     *
-     *  @dev Requirements:
-     *  - Locked state means passing one of following conditions:
-     *      - Must have status None/Vouching.
-     *
-     *  @param _submissionID Address corresponding to the human.
-     *  @return lockedState True if the submission has a locked state.
+    /** @dev Return true if the submission is registered on v1 and not removed here and not expired.
+     *  @param _submissionID The address of the submission.
+     *  @return Whether the submission is registered or not.
      */
-    function hasLockedState(address _submissionID) external view override returns (bool) {
-        //? if (removed[_submissionID]) return true;
-
-        (OldStatus status, , , , , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
-        return status <= OldStatus.Vouching;
-    }
-
-    /** @notice Check if a human is ready to be vouch.
-     *
-     *  @dev Requirements:
-     *  - Must be registered.
-     *  - Must not be vouching.
-     *
-     *  @param _submissionID Address corresponding to the human.
-     *  @return ready True if the human is ready to be vouch.
-     */
-    function vouchReady(address _submissionID) external view override returns (bool) {
+    function isRegistered(address _submissionID) external view override returns (bool) {
         if (removed[_submissionID]) return false;
 
-        (OldStatus status, uint64 submissionTime, , bool registered, bool isVouching, ) = oldProofOfHumanity
-            .getSubmissionInfo(_submissionID);
-
-        return (registered &&
-            uint40(submissionTime).addCap40(submissionDuration) > block.timestamp &&
-            status <= OldStatus.Vouching &&
-            !isVouching);
-    }
-
-    /** @notice Check if a human is ready to be removed via `revokeHumanity`.
-     *
-     *  @dev Requirements:
-     *  - Must be registered.
-     *  - Must have locked state.
-     *
-     *  @param _submissionID Address corresponding to the human.
-     *  @return ready True if the human is ready to be removed.
-     */
-    function removalReady(address _submissionID) external view override returns (bool) {
-        if (removed[_submissionID]) return false;
-
-        (OldStatus status, uint64 submissionTime, , bool registeredOnV1, , ) = oldProofOfHumanity.getSubmissionInfo(
-            _submissionID
-        );
+        (, uint64 submissionTime, , bool registered, , ) = proofOfHumanityV1.getSubmissionInfo(_submissionID);
 
         uint40 expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
-        return (registeredOnV1 && expirationTime > block.timestamp && status <= OldStatus.Vouching);
+        return registered && block.timestamp < expirationTime && submissionTime < forkTime;
     }
 
-    function isRegistered(address _submissionID) external view override returns (bool) {
-        return !removed[_submissionID] && oldProofOfHumanity.isRegistered(_submissionID);
-    }
-
+    /** @dev Returns the registration status and the expiration time of the submission.
+     *  @param _submissionID The address of the queried submission.
+     */
     function getSubmissionInfo(
         address _submissionID
     ) external view override returns (bool registered, uint40 expirationTime) {
-        (, uint64 submissionTime, , bool registeredOnV1, , ) = oldProofOfHumanity.getSubmissionInfo(_submissionID);
+        (, uint64 submissionTime, , bool registeredOnV1, , ) = proofOfHumanityV1.getSubmissionInfo(_submissionID);
 
         expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
-        if (registeredOnV1 && expirationTime > block.timestamp) registered = true;
+        if (registeredOnV1 && expirationTime > block.timestamp)
+            registered = !removed[_submissionID] && submissionTime < forkTime;
     }
 }
