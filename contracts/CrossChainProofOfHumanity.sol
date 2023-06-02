@@ -16,20 +16,20 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     struct Transfer {
         bytes20 humanityId; // the unique id corresponding to the humanity to transfer
-        uint64 humanityExpirationTime; // expirationTime at the moment of transfer
+        uint40 humanityExpirationTime; // expirationTime at the moment of transfer
         bytes32 transferHash; // unique hash of the transfer == keccak256(humanityId, block.timestamp, address(this), address(foreignProxy))
-        address foreignProxy; // address of the foreign proxy
+        address foreignProxy; // address of the foreign proxy transfer was sent to
     }
 
     struct CrossChainHumanity {
-        bool isHomeChain; // whether current chain is home chain of the humanity
-        uint40 expirationTime; // expirationTime at the moment of update
         address owner; // the owner address
+        uint40 expirationTime; // expirationTime at the moment of update
         uint40 lastTransferTime; // time of the last received transfer
+        bool isHomeChain; // whether current chain is considered as home chain by this contract; note: actual home chain of humanity is dependent on the state of it on all blockchains
     }
 
     struct GatewayInfo {
-        address foreignProxy; // address of the foreign proxy
+        address foreignProxy; // address of the foreign proxy; used in hash in case of multiple gateways for same proxy
         bool approved; // whether the gateway is approved
     }
 
@@ -45,6 +45,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     IProofOfHumanity public proofOfHumanity;
 
     /// @dev Cooldown a humanity has to wait for transferring again after a past received transfer.
+    /// @dev Used to avoid exploiting transfer functionality to evade revocation requests.
     uint256 public transferCooldown;
 
     /// @dev Mapping of the received transfer hashes
@@ -69,23 +70,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     event UpdateInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
-        address gateway,
-        bool claimed
+        uint40 expirationTime,
+        bool claimed,
+        address gateway
     );
-    event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint160 expirationTime, bool claimed);
+    event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime, bool claimed);
     event TransferInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
+        uint40 expirationTime,
         address gateway,
         bytes32 transferHash
     );
-    event TransferRetry(bytes32 transferHash);
     event TransferReceived(
         bytes20 indexed humanityId,
         address indexed owner,
-        uint160 expirationTime,
+        uint40 expirationTime,
         bytes32 transferHash
     );
 
@@ -142,31 +142,49 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         transferCooldown = _transferCooldown;
     }
 
+    /** @dev Add a bridge gateway as trusted.
+     *  @param _bridgeGateway address of the gateway on current chain.
+     *  @param _foreignProxy proxy messages sent through this gateway will be sent to.
+     */
     function addBridgeGateway(address _bridgeGateway, address _foreignProxy) external onlyGovernor {
         require(_bridgeGateway != address(0));
         require(!bridgeGateways[_bridgeGateway].approved);
+
         bridgeGateways[_bridgeGateway] = GatewayInfo(_foreignProxy, true);
+
         emit GatewayAdded(_bridgeGateway, _foreignProxy);
     }
 
+    /** @dev Remove a bridge gateway as trusted.
+     *  @param _bridgeGateway address of the trusted gateway whose trust will be removed.
+     */
     function removeBridgeGateway(address _bridgeGateway) external onlyGovernor {
         require(bridgeGateways[_bridgeGateway].approved);
+
         delete bridgeGateways[_bridgeGateway];
+
         emit GatewayRemoved(_bridgeGateway);
     }
 
     // ========== REQUESTS ==========
 
-    /** @notice Sends an update of the humanity status to the foreign chain
+    /** @notice Sends an update of the humanity status to the foreign chain. No need to specify the receiving chain as it'd be know by the gateway
+     *  @notice Communicates with receiveUpdate function of this contract's instance on the receiving chain
+     *
      *  @param _bridgeGateway address of the bridge gateway to use
      *  @param _humanityId Id of the humanity to update
      */
     function updateHumanity(address _bridgeGateway, bytes20 _humanityId) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
+        (, , , uint40 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
         bool humanityClaimed = proofOfHumanity.isClaimed(_humanityId);
 
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
+
         require(humanity.isHomeChain || humanityClaimed, "Must update from home chain");
+
+        // isHomeChain is set to true when humanity is claimed
+        // It also keeps true value (unless overwritten) if it was set before and humanity is now expired,
+        //      thus making it possible to update state of expired / unregistered humanity
         humanity.isHomeChain = true;
 
         IBridgeGateway(_bridgeGateway).sendMessage(
@@ -179,20 +197,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             )
         );
 
-        emit UpdateInitiated(_humanityId, owner, expirationTime, _bridgeGateway, humanityClaimed);
+        emit UpdateInitiated(_humanityId, owner, expirationTime, humanityClaimed, _bridgeGateway);
     }
 
     /** @notice Execute transfering the humanity to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        // This function requires humanity to be active, status None and human not vouching at the moment
-        (uint64 expirationTime, bytes20 humanityId) = proofOfHumanity.revokeManually(msg.sender);
+        // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
+        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.revokeManually(msg.sender);
 
         CrossChainHumanity storage humanity = humanityMapping[humanityId];
+
         require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");
 
-        humanity.expirationTime = uint40(expirationTime);
+        // Save state to not require extra updates from receiving chain
+        humanity.expirationTime = expirationTime;
         humanity.owner = msg.sender;
         humanity.isHomeChain = false;
 
@@ -200,9 +220,12 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         Transfer storage transfer = transfers[humanityId];
 
+        // Transfer hash must be unique, hence using timestamp in the packing among the other parameters
         bytes32 tHash = keccak256(
             abi.encodePacked(humanityId, block.timestamp, address(this), bridgeGateways[_bridgeGateway].foreignProxy)
         );
+
+        // Store the transfer details in the struct to use in case future implementations that support transfer retrials / recoveries
         transfer.transferHash = tHash;
         transfer.humanityId = humanityId;
         transfer.humanityExpirationTime = expirationTime;
@@ -221,52 +244,23 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         emit TransferInitiated(humanityId, msg.sender, expirationTime, _bridgeGateway, tHash);
     }
 
-    /** @notice Retry a failed transfer
-     *  @param _humanityId ID of the humanity to retry transfer for
-     *  @param _bridgeGateway address of the bridge gateway to use
-     */
-    function retryFailedTransfer(bytes20 _humanityId, address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        (, , , uint64 expirationTime, , ) = proofOfHumanity.getHumanityInfo(_humanityId);
-
-        CrossChainHumanity memory humanity = humanityMapping[_humanityId];
-        Transfer memory transfer = transfers[_humanityId];
-        require(
-            bridgeGateways[_bridgeGateway].foreignProxy == transfer.foreignProxy,
-            "Bridge gateway corresponds to wrong foreign proxy"
-        );
-        require(transfer.transferHash != 0, "No transfer was initiated");
-        require(expirationTime == transfer.humanityExpirationTime, "Humanity time mismatch");
-
-        IBridgeGateway(_bridgeGateway).sendMessage(
-            abi.encodeWithSelector(
-                ICrossChainProofOfHumanity.receiveTransfer.selector,
-                humanity.owner,
-                transfer.humanityId,
-                transfer.humanityExpirationTime,
-                transfer.transferHash
-            )
-        );
-
-        emit TransferRetry(transfer.transferHash);
-    }
-
     // ========== RECEIVES ==========
 
     /** @notice Receives the humanity from the foreign proxy
-     *  @param _owner ID of the human corresponding to the humanity
+     *  @dev Can only be called by a trusted gateway
+     *  @param _owner Wallet address corresponding to the humanity
      *  @param _humanityId ID of the humanity to update
-     *  @param _expirationTime time when the humanity was last claimed
-     *  @param _humanityId unique ID of the humanity
+     *  @param _expirationTime time when the humanity expires
      */
     function receiveUpdate(
         address _owner,
         bytes20 _humanityId,
-        uint64 _expirationTime,
+        uint40 _expirationTime,
         bool _isActive
     ) external override allowedGateway(msg.sender) {
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
 
-        // Clean human humanityId for past owner
+        // Clear humanityId for past owner
         delete humans[humanity.owner];
 
         if (_isActive) {
@@ -274,13 +268,17 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
             humanity.owner = _owner;
         } else delete humanity.owner;
 
-        humanity.expirationTime = uint40(_expirationTime);
+        humanity.expirationTime = _expirationTime;
+
+        // If it received update from another chain `isHomeChain` flag is marked as false
+        //         in order to avoid bridging state update of an removed / expired humanity
         humanity.isHomeChain = false;
 
         emit UpdateReceived(_humanityId, _owner, _expirationTime, _isActive);
     }
 
     /** @notice Receives the transfered humanity from the foreign proxy
+     *  @dev Can only be called by a trusted gateway
      *  @param _owner ID of the human corresponding to the humanity
      *  @param _humanityId ID of the humanity
      *  @param _expirationTime time when the humanity was last claimed
@@ -289,24 +287,27 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function receiveTransfer(
         address _owner,
         bytes20 _humanityId,
-        uint64 _expirationTime,
+        uint40 _expirationTime,
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
+        // Once transfer hash is flagged as received it is not possible to receive the transfer again
         require(!receivedTransferHashes[_transferHash]);
 
-        // Requires no status or phase for the humanity and human respectively
+        // If humanity is claimed on the main contract it will return false and not override the state
+        // Otherwise requires _owner to not be in process of claiming a humanity
         bool success = proofOfHumanity.grantManually(_humanityId, _owner, _expirationTime);
 
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
 
-        // Clean human humanityId for past owner
+        // Clear human humanityId for past owner
         delete humans[humanity.owner];
 
+        // Overriding this data in case it is outdated
         if (success) {
             humans[_owner] = _humanityId;
 
             humanity.owner = _owner;
-            humanity.expirationTime = uint40(_expirationTime);
+            humanity.expirationTime = _expirationTime;
             humanity.isHomeChain = true;
             humanity.lastTransferTime = uint40(block.timestamp);
         }
@@ -318,6 +319,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== VIEWS ==========
 
+    /** @notice Check whether humanity is claimed or not
+     *  @notice First check state to return from main contract and, if not claimed there, derive from state from this contract
+     *  @param _humanityId The id of the humanity to check
+     *  @return Whether humanity is claimed
+     */
     function isClaimed(bytes20 _humanityId) external view returns (bool) {
         if (proofOfHumanity.isClaimed(_humanityId)) return true;
 
@@ -325,15 +331,51 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         return humanity.owner != address(0) && humanity.expirationTime >= block.timestamp;
     }
 
-    function isHuman(address _owner) external view returns (bool) {
-        bytes20 humanityId = humans[_owner];
+    /** @notice Check whether the account corresponds to a claimed humanity
+     *  @notice First check isHuman state in main contract and, if false there, derive from state of this contract
+     *  @param _account The account address
+     *  @return Whether the account has a valid humanity
+     */
+    function isHuman(address _account) external view returns (bool) {
+        bytes20 humanityId = humans[_account];
         CrossChainHumanity memory humanity = humanityMapping[humanityId];
 
         return
-            proofOfHumanity.isHuman(_owner) ||
+            proofOfHumanity.isHuman(_account) ||
             (!humanity.isHomeChain &&
                 humanityId != 0 &&
-                humanity.owner == _owner &&
+                humanity.owner == _account &&
                 humanity.expirationTime > block.timestamp);
+    }
+
+    /** @notice Get the owner of a humanity. Returns null address if not claimed
+     *  @notice First check state in main contract and, if no owner returned, derive from state of this contract
+     *  @param _humanityId The id of the humanity
+     *  @return owner The owner of the humanity
+     */
+    function boundTo(bytes20 _humanityId) external view returns (address owner) {
+        owner = proofOfHumanity.boundTo(_humanityId);
+
+        if (owner == address(0x0)) {
+            CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+
+            if (humanity.expirationTime >= block.timestamp) owner = humanity.owner;
+        }
+    }
+
+    /** @notice Get the humanity corresponding to an address. Returns null humanity if it does not correspond to a humanity
+     *  @notice First check state in main contract and, if no humanity returned, derive from state of this contract
+     *  @param _account The address of the account to get the correspding humanity of
+     *  @return humanityId The humanity corresponding to the account
+     */
+    function humanityOf(address _account) external view returns (bytes20 humanityId) {
+        humanityId = proofOfHumanity.humanityOf(_account);
+
+        if (humanityId == bytes20(0x0)) {
+            humanityId = humans[_account];
+            CrossChainHumanity memory humanity = humanityMapping[humanityId];
+
+            if (humanity.owner != _account || block.timestamp > humanity.expirationTime) humanityId = bytes20(0x0);
+        }
     }
 }

@@ -4,15 +4,19 @@ pragma solidity 0.8.18;
 interface IProofOfHumanity {
     /* Manual adding/removing */
 
-    function grantManually(bytes20 _qid, address _owner, uint64 _expirationTime) external returns (bool success);
+    function grantManually(bytes20 _qid, address _owner, uint40 _expirationTime) external returns (bool success);
 
-    function revokeManually(address _owner) external returns (uint64 expirationTime, bytes20 humanityId);
+    function revokeManually(address _owner) external returns (bytes20 humanityId, uint40 expirationTime);
 
     /* Views */
 
     function isClaimed(bytes20 _humanityId) external view returns (bool);
 
     function isHuman(address _address) external view returns (bool);
+
+    function boundTo(bytes20 _humanityId) external view returns (address);
+
+    function humanityOf(address _account) external view returns (bytes20 humanityId);
 
     function getHumanityInfo(
         bytes20 _humanityId
@@ -23,7 +27,7 @@ interface IProofOfHumanity {
             bool vouching,
             bool pendingRevokal,
             uint48 nbPendingRequests,
-            uint64 expirationTime,
+            uint40 expirationTime,
             address owner,
             uint256 nbRequests
         );
