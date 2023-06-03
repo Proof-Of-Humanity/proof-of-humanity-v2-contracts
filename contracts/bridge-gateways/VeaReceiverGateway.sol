@@ -7,7 +7,7 @@ interface IVeaReceiver {
     function receiveMessage(address _sender, bytes memory _data) external;
 }
 
-contract VeaReceiverGateway is IVeaReceiver {
+contract VeaReceiverGateway is IVeaReceiver, IBridgeGateway {
     address public immutable veaOutbox;
     address public immutable homeProxy;
     address public homeGateway;
@@ -30,5 +30,9 @@ contract VeaReceiverGateway is IVeaReceiver {
         require(veaOutbox == msg.sender, "!vea");
         require(_messageSender == homeGateway, "!homeGateway");
         homeProxy.call(_data);
+    }
+
+    function sendMessage(bytes memory) external pure override {
+        revert();
     }
 }
