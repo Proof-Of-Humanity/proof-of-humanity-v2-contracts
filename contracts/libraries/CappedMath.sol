@@ -32,7 +32,9 @@ library CappedMath {
      */
     function subCap(uint256 _a, uint256 _b) internal pure returns (uint256) {
         if (_b > _a) return 0;
-        else return _a - _b;
+        unchecked {
+            return _a - _b;
+        }
     }
 
     /**
@@ -59,7 +61,9 @@ library CappedMath {
 
     function subCap40(uint40 _a, uint40 _b) internal pure returns (uint40) {
         if (_b > _a) return 0;
-        else return _a - _b;
+        unchecked {
+            return _a - _b;
+        }
     }
 
     function mulCap40(uint40 _a, uint40 _b) internal pure returns (uint40) {
