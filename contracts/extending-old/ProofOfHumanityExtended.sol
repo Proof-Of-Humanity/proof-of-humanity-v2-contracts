@@ -198,7 +198,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /// @dev Maps the address to human's humanityId. humans[address].
     mapping(address => bytes20) private humans;
 
-    /// @dev Indicates whether or not the voucher has vouched for a certain human. vouches[voucherAccount][vouchedHumanId][humanityId].
+    /// @dev Indicates whether or not the voucher has vouched for a certain human. vouches[voucherAddress][claimerAddress][humanityId].
     mapping(address => mapping(address => mapping(bytes20 => bool))) public vouches;
     /// @dev Maps a dispute Id with its data. disputeIdToData[arbitrator][disputeId].
     mapping(address => mapping(uint256 => DisputeData)) public disputeIdToData;
