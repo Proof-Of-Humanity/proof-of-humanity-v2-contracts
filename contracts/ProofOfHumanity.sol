@@ -323,9 +323,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         loserStakeMultiplier = _multipliers[2];
         requiredNumberOfVouches = _requiredNumberOfVouches;
 
-        ArbitratorData storage arbitratorData = arbitratorDataHistory.push();
-        arbitratorData.arbitrator = _arbitrator;
-        arbitratorData.arbitratorExtraData = _arbitratorExtraData;
+        arbitratorDataHistory.push(
+            ArbitratorData({arbitrator: _arbitrator, arbitratorExtraData: _arbitratorExtraData, metaEvidenceUpdates: 0})
+        );
 
         // EIP-712.
         bytes32 DOMAIN_TYPEHASH = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866; // keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)").
