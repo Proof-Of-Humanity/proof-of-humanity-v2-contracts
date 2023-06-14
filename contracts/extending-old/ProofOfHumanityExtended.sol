@@ -190,7 +190,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 public loserStakeMultiplier;
 
     /// @dev Stores the arbitrator data of the contract. Updated each time the data is changed.
-    ArbitratorData[] public arbitratorDataList;
+    ArbitratorData[] public arbitratorDataHistory;
 
     /// @dev Maps the humanity id to the Humanity data. humanityMapping[humanityId].
     mapping(bytes20 => Humanity) private humanityMapping;
@@ -328,7 +328,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         loserStakeMultiplier = _multipliers[2];
         requiredNumberOfVouches = _requiredNumberOfVouches;
 
-        ArbitratorData storage arbitratorData = arbitratorDataList.push();
+        ArbitratorData storage arbitratorData = arbitratorDataHistory.push();
         arbitratorData.arbitrator = _arbitrator;
         arbitratorData.arbitratorExtraData = _arbitratorExtraData;
 
@@ -517,9 +517,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         string calldata _registrationMetaEvidence,
         string calldata _clearingMetaEvidence
     ) external onlyGovernor {
-        ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
+        ArbitratorData storage arbitratorData = arbitratorDataHistory[arbitratorDataHistory.length - 1];
         uint96 newMetaEvidenceUpdates = arbitratorData.metaEvidenceUpdates + 1;
-        arbitratorDataList.push(
+        arbitratorDataHistory.push(
             ArbitratorData({
                 arbitrator: arbitratorData.arbitrator,
                 metaEvidenceUpdates: newMetaEvidenceUpdates,
@@ -538,8 +538,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _arbitratorExtraData The extra data used by the new arbitrator.
      */
     function changeArbitrator(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) external onlyGovernor {
-        ArbitratorData storage arbitratorData = arbitratorDataList[arbitratorDataList.length - 1];
-        arbitratorDataList.push(
+        ArbitratorData storage arbitratorData = arbitratorDataHistory[arbitratorDataHistory.length - 1];
+        arbitratorDataHistory.push(
             ArbitratorData({
                 arbitrator: _arbitrator,
                 metaEvidenceUpdates: arbitratorData.metaEvidenceUpdates,
@@ -658,13 +658,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         request.requester = payable(msg.sender);
         request.challengePeriodStart = uint40(block.timestamp);
 
-        uint256 arbitratorDataId = arbitratorDataList.length - 1;
+        uint256 arbitratorDataId = arbitratorDataHistory.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
 
         humanity.pendingRevocation = true;
         humanity.nbPendingRequests++;
 
-        ArbitratorData memory arbitratorData = arbitratorDataList[arbitratorDataId];
+        ArbitratorData memory arbitratorData = arbitratorDataHistory[arbitratorDataId];
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
             requestBaseDeposit
         );
@@ -694,7 +694,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanityMapping[_humanityId].requests[_requestId];
         require(request.status == Status.Vouching);
 
-        ArbitratorData memory arbitratorData = arbitratorDataList[request.arbitratorDataId];
+        ArbitratorData memory arbitratorData = arbitratorDataHistory[request.arbitratorDataId];
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
             requestBaseDeposit
         );
@@ -906,7 +906,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Challenge storage challenge = request.challenges[challengeId];
         Round storage round = challenge.rounds[0];
 
-        ArbitratorData memory arbitratorData = arbitratorDataList[request.arbitratorDataId];
+        ArbitratorData memory arbitratorData = arbitratorDataHistory[request.arbitratorDataId];
         uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
 
         require(_contribute(_humanityId, _requestId, challengeId, 0, Party.Challenger, arbitrationCost));
@@ -988,7 +988,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         uint256 appealCost = IArbitrator(_arbitrator).appealCost(
             _disputeId,
-            arbitratorDataList[request.arbitratorDataId].arbitratorExtraData
+            arbitratorDataHistory[request.arbitratorDataId].arbitratorExtraData
         );
         uint256 totalCost = appealCost.addCap(appealCost.mulCap(multiplier) / MULTIPLIER_DIVISOR);
 
@@ -1006,7 +1006,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         ) {
             IArbitrator(_arbitrator).appeal{value: appealCost}(
                 _disputeId,
-                arbitratorDataList[request.arbitratorDataId].arbitratorExtraData
+                arbitratorDataHistory[request.arbitratorDataId].arbitratorExtraData
             );
             challenge.lastRoundId++;
 
@@ -1203,7 +1203,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Challenge storage challenge = request.challenges[disputeData.challengeId];
         Round storage round = challenge.rounds[challenge.lastRoundId];
 
-        require(address(arbitratorDataList[request.arbitratorDataId].arbitrator) == msg.sender);
+        require(address(arbitratorDataHistory[request.arbitratorDataId].arbitrator) == msg.sender);
         require(request.status == Status.Disputed);
 
         Party resultRuling = Party(_ruling);
@@ -1273,7 +1273,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function submitEvidence(bytes20 _humanityId, uint96 _requestId, string calldata _evidence) external {
         emit Evidence(
-            arbitratorDataList[humanityMapping[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
+            arbitratorDataHistory[humanityMapping[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
             uint256(keccak256(abi.encodePacked(_humanityId, _requestId))),
             msg.sender,
             _evidence
@@ -1304,14 +1304,14 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
 
-        uint256 arbitratorDataId = arbitratorDataList.length - 1;
+        uint256 arbitratorDataId = arbitratorDataHistory.length - 1;
         request.arbitratorDataId = uint16(arbitratorDataId);
 
         // Use requestCount like this in order to avoid having referencing the claimer's pending request as 0 at any point.
         humanity.requestCount[msg.sender] = requestId + 1;
         humans[msg.sender] = _humanityId;
 
-        ArbitratorData memory arbitratorData = arbitratorDataList[arbitratorDataId];
+        ArbitratorData memory arbitratorData = arbitratorDataHistory[arbitratorDataId];
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
             requestBaseDeposit
         );
@@ -1432,8 +1432,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /** @notice Get the number of times the arbitrator data was updated.
      *  @return The number of arbitrator data updates.
      */
-    function getArbitratorDataListCount() external view returns (uint256) {
-        return arbitratorDataList.length;
+    function getArbitratorDataHistoryCount() external view returns (uint256) {
+        return arbitratorDataHistory.length;
     }
 
     /** @notice Get info about the humanity.
