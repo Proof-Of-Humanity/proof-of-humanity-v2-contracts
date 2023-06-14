@@ -32,22 +32,22 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /// ====== CONSTANTS ====== ///
 
     /// @dev The amount of non-zero choices the arbitrator can give.
-    uint256 private constant _RULING_OPTIONS = 2;
+    uint256 private constant RULING_OPTIONS = 2;
 
     /// @dev The number of vouches that will be automatically processed when executing a request.
-    uint256 private constant _VOUCHES_TO_AUTOPROCESS = 10;
+    uint256 private constant VOUCHES_TO_AUTOPROCESS = 10;
 
     /// @dev Indicates that reasons' bitmap is full. 0b1111.
-    uint256 private constant _FULL_REASONS_SET = 15;
+    uint256 private constant FULL_REASONS_SET = 15;
 
     /// @dev Divisor parameter for multipliers.
-    uint256 private constant _MULTIPLIER_DIVISOR = 10000;
+    uint256 private constant MULTIPLIER_DIVISOR = 10000;
 
     /// @dev The EIP-712 domainSeparator specific to this deployed instance. It is used to verify the IsHumanVoucher's signature.
-    bytes32 private _DOMAIN_SEPARATOR;
+    bytes32 private DOMAIN_SEPARATOR;
 
     /// @dev The EIP-712 typeHash of IsHumanVoucher == keccak256("IsHumanVoucher(address vouched,bytes20 humanityId,uint256 expirationTimestamp)").
-    bytes32 private constant _IS_HUMAN_VOUCHER_TYPEHASH =
+    bytes32 private constant IS_HUMAN_VOUCHER_TYPEHASH =
         0x396b8143cb24d01c85cbad0682e0e83f2ea427a5b3cd56872e8e1b2a55d4c2ab;
 
     /// ====== ENUMS ====== ///
@@ -329,7 +329,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         // EIP-712.
         bytes32 DOMAIN_TYPEHASH = 0x8cad95687ba82c2ce50e74f7b754645e5117c3a5bec8151c0726d5857980a866; // keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)").
-        _DOMAIN_SEPARATOR = keccak256(
+        DOMAIN_SEPARATOR = keccak256(
             abi.encode(DOMAIN_TYPEHASH, keccak256("Proof of Humanity"), block.chainid, address(this))
         );
 
@@ -779,9 +779,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
                     keccak256(
                         abi.encodePacked(
                             "\x19\x01",
-                            _DOMAIN_SEPARATOR,
+                            DOMAIN_SEPARATOR,
                             keccak256(
-                                abi.encode(_IS_HUMAN_VOUCHER_TYPEHASH, _claimer, humanityId, signature.expirationTime)
+                                abi.encode(IS_HUMAN_VOUCHER_TYPEHASH, _claimer, humanityId, signature.expirationTime)
                             )
                         )
                     ),
@@ -887,7 +887,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
 
         uint256 disputeId = arbitratorData.arbitrator.createDispute{value: arbitrationCost}(
-            _RULING_OPTIONS,
+            RULING_OPTIONS,
             arbitratorData.arbitratorExtraData
         );
         challenge.disputeId = disputeId;
@@ -962,7 +962,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             _disputeId,
             arbitratorDataList[request.arbitratorDataId].arbitratorExtraData
         );
-        uint256 totalCost = appealCost.addCap(appealCost.mulCap(multiplier) / _MULTIPLIER_DIVISOR);
+        uint256 totalCost = appealCost.addCap(appealCost.mulCap(multiplier) / MULTIPLIER_DIVISOR);
 
         if (
             _contribute(
@@ -1023,7 +1023,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         request.status = Status.Resolved;
         delete humanity.requestCount[request.requester];
 
-        if (request.vouches.length != 0) processVouches(_humanityId, _requestId, _VOUCHES_TO_AUTOPROCESS);
+        if (request.vouches.length != 0) processVouches(_humanityId, _requestId, VOUCHES_TO_AUTOPROCESS);
 
         withdrawFeesAndRewards(request.requester, _humanityId, _requestId, 0, 0); // Automatically withdraw for the requester.
     }
@@ -1194,7 +1194,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             if (resultRuling == Party.Requester) {
                 if (!request.punishedVouch) {
                     // All reasons being used means the request can't be challenged again, so we can update its status.
-                    if (request.usedReasons == _FULL_REASONS_SET) {
+                    if (request.usedReasons == FULL_REASONS_SET) {
                         humanity.owner = request.requester;
                         humanity.expirationTime = uint40(block.timestamp).addCap40(humanityLifespan);
 
