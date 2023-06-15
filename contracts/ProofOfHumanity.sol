@@ -8,9 +8,9 @@
 
 pragma solidity 0.8.18;
 
-import "@kleros/erc-792/contracts/IArbitrable.sol";
-import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
-import "@kleros/erc-792/contracts/IArbitrator.sol";
+import {IArbitrable} from "@kleros/erc-792/contracts/IArbitrable.sol";
+import {IEvidence} from "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
+import {IArbitrator} from "@kleros/erc-792/contracts/IArbitrator.sol";
 
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";
 import {SafeSend} from "./libraries/SafeSend.sol";
