@@ -184,6 +184,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /// @dev Multiplier for calculating the fee stake paid by the party that lost the previous round.
     uint256 public loserStakeMultiplier;
 
+    /// @dev Gap for possible future versions storage layout changes.
+    uint256[50] internal __gap;
+
     /// @dev Stores the arbitrator data of the contract. Updated each time the data is changed.
     ArbitratorData[] public arbitratorDataHistory;
 

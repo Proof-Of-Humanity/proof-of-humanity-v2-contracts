@@ -52,9 +52,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     bytes32 private constant IS_HUMAN_VOUCHER_TYPEHASH =
         0x396b8143cb24d01c85cbad0682e0e83f2ea427a5b3cd56872e8e1b2a55d4c2ab;
 
-    // keccak256("old-proof-of-humanity")
-    bytes32 private constant FORK_MODULE_SLOT = 0x526164fb4adeea0c7815d0240c63ebf772859d7cea21e1bb488e78a2c7deab5b;
-
     /// ====== ENUMS ====== ///
 
     enum Party {
@@ -188,6 +185,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 public winnerStakeMultiplier;
     /// @dev Multiplier for calculating the fee stake paid by the party that lost the previous round.
     uint256 public loserStakeMultiplier;
+
+    /// @dev Fork Module instance to be used for interacting with v1 state.
+    IForkModule private forkModule;
+
+    /// @dev Gap for possible future versions storage layout changes.
+    /// @notice Decremented gap one because of fork module variable above.
+    uint256[49] internal __gap;
 
     /// @dev Stores the arbitrator data of the contract. Updated each time the data is changed.
     ArbitratorData[] public arbitratorDataHistory;
@@ -369,7 +373,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         if (
             (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
             // If not claimed in this contract, check in fork module too.
-            _getForkModule().isRegistered(_account)
+            forkModule.isRegistered(_account)
         ) return false;
 
         // Must not be in the process of claiming a humanity.
@@ -417,7 +421,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             humanityId = bytes20(_account);
 
             // Should revert in case account is not registered.
-            expirationTime = _getForkModule().tryRemove(_account);
+            expirationTime = forkModule.tryRemove(_account);
         }
 
         emit HumanityRevokedManually(humanityId);
@@ -563,10 +567,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Change fork module instance.
      *  @param _forkModule Address of fork module contract.
      */
-    function changeForkModule(IForkModule _forkModule) external onlyGovernor {
-        assembly {
-            sstore(FORK_MODULE_SLOT, _forkModule)
-        }
+    function changeForkModule(address _forkModule) external onlyGovernor {
+        forkModule = IForkModule(_forkModule);
     }
 
     /// ====== REQUESTS ====== ///
@@ -645,7 +647,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(
             (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
                 // If not claimed on this contract check on V1.
-                _getForkModule().isRegistered(address(_humanityId))
+                forkModule.isRegistered(address(_humanityId))
         );
         require(!humanity.pendingRevocation);
         require(humanity.lastFailedRevocationTime.addCap40(failedRevocationCooldown) < block.timestamp);
@@ -832,7 +834,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 voucherHumanity = humanityData[voucherHumanityId];
                 if (
                     ((voucherHumanity.owner == voucherAccount && block.timestamp < voucherHumanity.expirationTime) ||
-                        _getForkModule().isRegistered(voucherAccount)) &&
+                        forkModule.isRegistered(voucherAccount)) &&
                     !voucherHumanity.vouching &&
                     voucherAccount != _claimer
                 ) {
@@ -1041,7 +1043,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 humanity.pendingRevocation = false;
 
                 // If not claimed in this contract, dirctly remove in fork module.
-            } else _getForkModule().remove(address(_humanityId));
+            } else forkModule.remove(address(_humanityId));
 
             emit HumanityRevoked(_humanityId, _requestId);
         } else if (!request.punishedVouch) {
@@ -1102,7 +1104,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                     delete voucherHumanity.owner;
 
                     // If not claimed in this contract, directly remove in fork module.
-                } else _getForkModule().remove(address(voucherHumanityId));
+                } else forkModule.remove(address(voucherHumanityId));
 
                 emit HumanityRevokedManually(voucherHumanityId);
             }
@@ -1225,7 +1227,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime)
                     delete humanity.owner;
                     // If not claimed in this contract, remove in fork module.
-                else _getForkModule().remove(address(disputeData.humanityId));
+                else forkModule.remove(address(disputeData.humanityId));
 
                 emit HumanityRevoked(disputeData.humanityId, disputeData.requestId);
             } else humanity.lastFailedRevocationTime = uint40(block.timestamp);
@@ -1376,12 +1378,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GETTERS ====== ///
 
-    function _getForkModule() internal view returns (IForkModule oldPoH) {
-        assembly {
-            oldPoH := sload(FORK_MODULE_SLOT)
-        }
-    }
-
     /** @notice Check whether humanity is claimed or not.
      *  @param _humanityId The id of the humanity to check.
      *  @return Whether humanity is claimed.
@@ -1391,7 +1387,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         // Check this contract's state first and, if humanity not claimed here, check fork module.
         return
             (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
-            _getForkModule().isRegistered(address(_humanityId));
+            forkModule.isRegistered(address(_humanityId));
     }
 
     /** @notice Check whether the account corresponds to a claimed humanity.
@@ -1403,7 +1399,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         // Check this contract's state first and, if account not registered here, check fork module.
         return
             (humanity.owner == _account && block.timestamp < humanity.expirationTime) ||
-            _getForkModule().isRegistered(_account);
+            forkModule.isRegistered(_account);
     }
 
     /** @notice Get the owner of a humanity.
@@ -1413,7 +1409,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function boundTo(bytes20 _humanityId) external view override returns (address) {
         Humanity storage humanity = humanityData[_humanityId];
         if (block.timestamp < humanity.expirationTime) return humanity.owner;
-        return (_getForkModule().isRegistered(address(_humanityId))) ? address(_humanityId) : address(0x0);
+        return (forkModule.isRegistered(address(_humanityId))) ? address(_humanityId) : address(0x0);
     }
 
     /** @notice Get the humanity corresponding to an address. Returns zero if it corresponds to no humanity.
@@ -1424,7 +1420,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         humanityId = accountHumanity[_account];
         Humanity storage humanity = humanityData[humanityId];
         if (humanity.owner != _account || humanity.expirationTime < block.timestamp) {
-            if (_getForkModule().isRegistered(_account)) humanityId = bytes20(_account);
+            if (forkModule.isRegistered(_account)) humanityId = bytes20(_account);
             else humanityId = bytes20(0x0);
         }
     }
@@ -1457,7 +1453,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityData[_humanityId];
         bool registeredOnV1 = false;
         owner = address(_humanityId);
-        (registeredOnV1, expirationTime) = _getForkModule().getSubmissionInfo(owner);
+        (registeredOnV1, expirationTime) = forkModule.getSubmissionInfo(owner);
         if (!registeredOnV1) {
             owner = humanity.owner;
             expirationTime = humanity.expirationTime;
