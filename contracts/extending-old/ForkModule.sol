@@ -16,8 +16,8 @@ import {IProofOfHumanityOld} from "../interfaces/IProofOfHumanityOld.sol";
  *
  *  PoHV2 functions which interact with the old PoH contract.
  *  * -> Part of process of potential removal   |   *** -> Includes removal
- *  grantManually
- *  revokeManually ***
+ *  ccGrantHumanity
+ *  ccDischargeHumanity ***
  *  claimHumanity
  *  revokeHumanity *
  *  advanceState   *

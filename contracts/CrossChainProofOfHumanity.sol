@@ -205,7 +205,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
-        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.revokeManually(msg.sender);
+        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccDischargeHumanity(msg.sender);
 
         CrossChainHumanity storage humanity = humanityMapping[humanityId];
 
@@ -295,7 +295,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         // If humanity is claimed on the main contract it will return false and not override the state
         // Otherwise requires _owner to not be in process of claiming a humanity
-        bool success = proofOfHumanity.grantManually(_humanityId, _owner, _expirationTime);
+        bool success = proofOfHumanity.ccGrantHumanity(_humanityId, _owner, _expirationTime);
 
         CrossChainHumanity storage humanity = humanityMapping[_humanityId];
 

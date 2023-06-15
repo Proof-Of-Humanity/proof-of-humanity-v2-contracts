@@ -345,7 +345,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GOVERNANCE ====== ///
 
-    /** @dev Manually grant humanity via cross-chain instance.
+    /** @dev Grant humanity via cross-chain instance.
      *  @dev Returns whether humanity was not claimed (thus granted successfully) for better interaction with CrossChainPoH instance.
      *
      *  @dev Emits {HumanityGrantedManually} event.
@@ -358,11 +358,11 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _expirationTime Expiration time of the newly added humanity.
      *  @return success Whether the humanity was successfully granted.
      */
-    function grantManually(
+    function ccGrantHumanity(
         bytes20 _humanityId,
         address _account,
         uint40 _expirationTime
-    ) external override onlyCrossChain returns (bool success) {
+    ) external onlyCrossChain returns (bool success) {
         Humanity storage humanity = humanityMapping[_humanityId];
 
         // If humanity is claimed, don't overwrite.
@@ -384,7 +384,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         return true;
     }
 
-    /** @dev Directly revoke a humanity via cross-chain instance.
+    /** @dev Directly remove a humanity via cross-chain instance when initiating a transfer.
      *  @dev Returns humanityId and expirationTime for better interaction with CrossChainPoH instance.
      *
      *  @dev Emits {HumanityRevokedManually} event.
@@ -399,9 +399,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @return humanityId Humanity ID to be revoked.
      *  @return expirationTime Expiration time of the revoked humanity.
      */
-    function revokeManually(
+    function ccDischargeHumanity(
         address _account
-    ) external override onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
+    ) external onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
         humanityId = humans[_account];
         Humanity storage humanity = humanityMapping[humanityId];
         require(humanity.nbPendingRequests == 0);

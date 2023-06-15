@@ -4,9 +4,13 @@ pragma solidity 0.8.18;
 interface IProofOfHumanity {
     /* Manual adding/removing */
 
-    function grantManually(bytes20 _qid, address _owner, uint40 _expirationTime) external returns (bool success);
+    function ccGrantHumanity(
+        bytes20 _humanityId,
+        address _owner,
+        uint40 _expirationTime
+    ) external returns (bool success);
 
-    function revokeManually(address _owner) external returns (bytes20 humanityId, uint40 expirationTime);
+    function ccDischargeHumanity(address _owner) external returns (bytes20 humanityId, uint40 expirationTime);
 
     /* Views */
 
