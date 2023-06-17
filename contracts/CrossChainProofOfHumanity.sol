@@ -337,15 +337,15 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @return Whether the account has a valid humanity
      */
     function isHuman(address _account) external view returns (bool) {
+        if (proofOfHumanity.isHuman(_account)) return true;
+
         bytes20 humanityId = humans[_account];
         CrossChainHumanity memory humanity = humanityMapping[humanityId];
 
-        return
-            proofOfHumanity.isHuman(_account) ||
-            (!humanity.isHomeChain &&
-                humanityId != 0 &&
+        return !humanity.isHomeChain &&
+                humanityId != bytes20(0x0) &&
                 humanity.owner == _account &&
-                humanity.expirationTime > block.timestamp);
+                humanity.expirationTime > block.timestamp;
     }
 
     /** @notice Get the owner of a humanity. Returns null address if not claimed
