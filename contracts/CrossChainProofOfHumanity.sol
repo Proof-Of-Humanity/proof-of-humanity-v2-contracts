@@ -65,8 +65,24 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     // ========== EVENTS ==========
 
+    /** @dev Emitted when a bridge gateway is added via governance.
+     *  @param bridgeGateway The address of the bridge gateway.
+     *  @param foreignProxy The address of the foreign proxy.
+     */
     event GatewayAdded(address indexed bridgeGateway, address foreignProxy);
+
+    /** @dev Emitted when a bridge gateway is removed via governance.
+     *  @param bridgeGateway The address of the bridge gateway.
+     */
     event GatewayRemoved(address indexed bridgeGateway);
+
+    /** @dev Emitted when an update is initiated for a humanity ID.
+     *  @param humanityId The humanity ID.
+     *  @param owner The address of the owner.
+     *  @param expirationTime The expiration time of the humanity.
+     *  @param claimed Indicates whether the humanity is claimed.
+     *  @param gateway The address of the bridge gateway to use to relay the data.
+     */
     event UpdateInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
@@ -74,7 +90,22 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bool claimed,
         address gateway
     );
+
+    /** @dev Emitted when a state update is received for a humanity ID.
+     *  @param humanityId The humanity ID.
+     *  @param owner The address of the owner.
+     *  @param expirationTime The new expiration time of the humanity.
+     *  @param claimed Indicates if the humanity is claimed.
+     */
     event UpdateReceived(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime, bool claimed);
+
+    /** @dev Emitted when a transfer is initiated for a humanity ID.
+     *  @param humanityId The humanity ID.
+     *  @param owner The address of the owner.
+     *  @param expirationTime The expiration time of the humanity.
+     *  @param gateway The address of the bridge gateway to use to relay the data.
+     *  @param transferHash The computed hash of the transfer.
+     */
     event TransferInitiated(
         bytes20 indexed humanityId,
         address indexed owner,
@@ -82,6 +113,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         address gateway,
         bytes32 transferHash
     );
+
+    /** @dev Emitted when a transfer is received for a humanity ID.
+     *  @param humanityId The humanity ID.
+     *  @param owner The address of the owner.
+     *  @param expirationTime The expiration time of the humanity.
+     *  @param transferHash The hash of the transfer.
+     */
     event TransferReceived(
         bytes20 indexed humanityId,
         address indexed owner,

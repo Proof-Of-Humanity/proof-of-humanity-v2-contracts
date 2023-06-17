@@ -221,21 +221,75 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== EVENTS ====== ///
 
+    /** @dev Emitted when contract is initialized.
+     */
     event Initialized();
+
+    /** @dev Emitted when governor changed.
+     *  @param governor New governor address.
+     */
     event GovernorChanged(address governor);
+
+    /** @dev Emitted when the request base deposit is changed.
+     *  @param requestBaseDeposit The new value of the request base deposit.
+     */
     event RequestBaseDepositChanged(uint256 requestBaseDeposit);
+
+    /** @dev Emitted when duration related bariables changed.
+     *  @param humanityLifespan The new humanity lifespan.
+     *  @param renewalPeriodDuration The new duration of renewal period.
+     *  @param challengePeriodDuration The new duration of challenge period.
+     *  @param failedRevocationCooldown The new failed revocation cooldown.
+     */
     event DurationsChanged(
         uint40 humanityLifespan,
         uint40 renewalPeriodDuration,
         uint40 challengePeriodDuration,
         uint40 failedRevocationCooldown
     );
+
+    /** @dev Emitted when the required number of vouches is changed.
+     *  @param requiredNumberOfVouches The new required number of vouches.
+     */
     event RequiredNumberOfVouchesChanged(uint32 requiredNumberOfVouches);
+
+    /** @dev Emitted when the stake multipliers are changed.
+     *  @param sharedMultiplier The new shared multiplier.
+     *  @param winnerMultiplier The new winner multiplier.
+     *  @param loserMultiplier The new loser multiplier.
+     */
     event StakeMultipliersChanged(uint256 sharedMultiplier, uint256 winnerMultiplier, uint256 loserMultiplier);
+
+    /** @dev Emitted when the cross-chain proxy is changed.
+     *  @param crossChainProofOfHumanity The new cross-chain proxy address.
+     */
     event CrossChainProxyChanged(address crossChainProofOfHumanity);
+
+    /** @dev Emitted when the arbitrator is changed.
+     *  @param arbitrator The new arbitrator address.
+     *  @param arbitratorExtraData The new arbitrator extra data.
+     */
     event ArbitratorChanged(IArbitrator arbitrator, bytes arbitratorExtraData);
-    event HumanityGrantedManually(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime);
-    event HumanityRevokedManually(bytes20 indexed humanityId);
+
+    /** @dev Emitted when humanity is granted directly via cross-chain operations.
+     *  @param humanityId The humanity ID.
+     *  @param owner The address of the owner.
+     *  @param expirationTime The expiration time of the humanity.
+     */
+    event HumanityGrantedDirectly(bytes20 indexed humanityId, address indexed owner, uint40 expirationTime);
+
+    /** @dev Emitted when humanity is revoked directly via cross-chain operations or because of bad vouching.
+     *  @param humanityId The humanity ID.
+     */
+    event HumanityDischargeDirectly(bytes20 indexed humanityId);
+
+    /** @dev Emitted when a claim request for a humanityId is made.
+     *  @param requester The address of the requester.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param evidence The evidence provided for the claim.
+     *  @param name The name associated with the human.
+     */
     event ClaimRequest(
         address indexed requester,
         bytes20 indexed humanityId,
@@ -243,13 +297,63 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         string evidence,
         string name
     );
+
+    /** @dev Emitted when a renewal request is made.
+     *  @param requester The address of the requester.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param evidence The evidence provided for the renewal request.
+     */
     event RenewalRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string evidence);
+
+    /** @dev Emitted when a revocation request is made.
+     *  @param requester The address of the requester.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param evidence The evidence provided for the revocation request.
+     */
     event RevocationRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string evidence);
+
+    /** @dev Emitted when an on-chain vouch is added.
+     *  @param voucherAccount The address of the voucher.
+     *  @param claimer The address of the claimer.
+     *  @param humanityId The humanity ID the vouch claims the claimer corresponds to.
+     */
     event VouchAdded(address indexed voucherAccount, address indexed claimer, bytes20 humanityId);
+
+    /** @dev Emitted when an on-chain vouch is removed.
+     *  @param voucherAccount The address of the voucher.
+     *  @param claimer The address of the claimer.
+     *  @param humanityId The humanity ID.
+     */
     event VouchRemoved(address indexed voucherAccount, address indexed claimer, bytes20 humanityId);
+
+    /** @dev Emitted when an on-chain or off-chain vouch is registered for a request.
+     *  @param voucherHumanityId The humanity ID of the voucher.
+     *  @param vouchedHumanityId The humanity ID of the vouched user.
+     *  @param requestId The ID of the request.
+     */
     event VouchRegistered(bytes20 indexed voucherHumanityId, bytes20 indexed vouchedHumanityId, uint256 requestId);
+
+    /** @dev Emitted when a request is withdrawn.
+     *  @param humanityId The humanity ID for which the sender withdraws the request for.
+     *  @param requestId The ID of the request.
+     */
     event RequestWithdrawn(bytes20 humanityId, uint256 requestId);
+
+    /** @dev Emitted when the state of the request is advanced from vouching to pending state for a claimer.
+     *  @param claimer The address of the claimer.
+     */
     event StateAdvanced(address claimer);
+
+    /** @dev Emitted when a request is challenged.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     *  @param reason The reason for the challenge.
+     *  @param disputeId The created dispute ID.
+     *  @param evidence The evidence provided for the challenge.
+     */
     event RequestChallenged(
         bytes20 humanityId,
         uint256 requestId,
@@ -258,11 +362,48 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 disputeId,
         string evidence
     );
+
+    /** @dev Emitted when humanity is succesfully claimed.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the succesfull request.
+     */
     event HumanityClaimed(bytes20 humanityId, uint256 requestId);
+
+    /** @dev Emitted when humanity is succesfully revoked.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the succesfull request.
+     */
     event HumanityRevoked(bytes20 humanityId, uint256 requestId);
+
+    /** @dev Emitted when vouches are processed for a request.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param endIndex The index of the last vouch processed.
+     */
     event VouchesProcessed(bytes20 humanityId, uint256 requestId, uint256 endIndex);
+
+    /** @dev Emitted when the challenge period is restarted after an unsuccesful challenge.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     */
     event ChallengePeriodRestart(bytes20 humanityId, uint256 requestId, uint256 challengeId);
+
+    /** @dev Emitted when an appeal is created.
+     *  @param arbitrator The arbitrator address.
+     *  @param disputeId The ID of the dispute.
+     */
     event AppealCreated(IArbitrator arbitrator, uint256 disputeId);
+
+    /** @dev Emitted when a contribution is made to a challenge.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     *  @param round The round of the contribution.
+     *  @param contributor The address of the contributor.
+     *  @param contribution The contribution amount.
+     *  @param side The side of the contribution.
+     */
     event Contribution(
         bytes20 humanityId,
         uint256 requestId,
@@ -272,6 +413,14 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 contribution,
         Party side
     );
+
+    /** @dev Emitted when fees and rewards are withdrawn for a challenge round. 
+     *  @param humanityId The humanity ID. 
+     *  @param requestId The ID of the request. 
+     *  @param challengeId The ID of the challenge. 
+     *  @param round The round of the challenge. 
+     *  @param beneficiary The address of the beneficiary. 
+     */
     event FeesAndRewardsWithdrawn(
         bytes20 humanityId,
         uint256 requestId,
@@ -346,7 +495,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Grant humanity via cross-chain instance.
      *  @dev Returns whether humanity was not claimed (thus granted successfully) for better interaction with CrossChainPoH instance.
      *
-     *  @dev Emits {HumanityGrantedManually} event.
+     *  @dev Emits {HumanityGrantedDirectly} event.
      *
      *  @dev Requirements:
      *  - Human must not be in the process of claiming a humanity.
@@ -373,7 +522,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         humanity.expirationTime = _expirationTime;
         accountHumanity[_account] = _humanityId;
 
-        emit HumanityGrantedManually(_humanityId, _account, _expirationTime);
+        emit HumanityGrantedDirectly(_humanityId, _account, _expirationTime);
 
         return true;
     }
@@ -381,7 +530,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Directly remove a humanity via cross-chain instance when initiating a transfer.
      *  @dev Returns humanityId and expirationTime for better interaction with CrossChainPoH instance.
      *
-     *  @dev Emits {HumanityRevokedManually} event.
+     *  @dev Emits {HumanityDischargeDirectly} event.
      *
      *  @dev Requirements:
      *  - Owner of the humanity must be _account.
@@ -408,7 +557,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         delete humanity.owner;
 
-        emit HumanityRevokedManually(humanityId);
+        emit HumanityDischargeDirectly(humanityId);
     }
 
     /** @dev Change the governor of the contract.
@@ -1035,7 +1184,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Profiles who vouched for successfully challenged claim requests are penalized.
      *
      *  @dev Emits {VouchesProcessed} event.
-     *  @dev Emits {HumanityRevokedManually} event.
+     *  @dev Emits {HumanityDischargeDirectly} event.
      *
      *  @dev Requirements:
      *  - Request must be resolved.
@@ -1070,7 +1219,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
                 delete voucherHumanity.owner;
 
-                emit HumanityRevokedManually(request.vouches[lastProcessed]);
+                emit HumanityDischargeDirectly(request.vouches[lastProcessed]);
             }
 
             unchecked {
