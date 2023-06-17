@@ -55,10 +55,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     mapping(address => GatewayInfo) public bridgeGateways;
 
     /// @dev Mapping of the humanity IDs to corresponding humanity struct
-    mapping(bytes20 => CrossChainHumanity) public humanityMapping;
+    mapping(bytes20 => CrossChainHumanity) public humanityData;
 
     /// @dev Mapping of addresses to corresponding humanity IDs
-    mapping(address => bytes20) public humans;
+    mapping(address => bytes20) private accountHumanity;
 
     /// @dev Mapping of the humanity IDs to last corresponding outgoing transfer
     mapping(bytes20 => Transfer) public transfers;
@@ -178,7 +178,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         (, , , uint40 expirationTime, address owner, ) = proofOfHumanity.getHumanityInfo(_humanityId);
         bool humanityClaimed = proofOfHumanity.isClaimed(_humanityId);
 
-        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
+        CrossChainHumanity storage humanity = humanityData[_humanityId];
 
         require(humanity.isHomeChain || humanityClaimed, "Must update from home chain");
 
@@ -207,7 +207,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
         (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccDischargeHumanity(msg.sender);
 
-        CrossChainHumanity storage humanity = humanityMapping[humanityId];
+        CrossChainHumanity storage humanity = humanityData[humanityId];
 
         require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");
 
@@ -216,7 +216,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         humanity.owner = msg.sender;
         humanity.isHomeChain = false;
 
-        humans[msg.sender] = humanityId;
+        accountHumanity[msg.sender] = humanityId;
 
         Transfer storage transfer = transfers[humanityId];
 
@@ -250,7 +250,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @dev Can only be called by a trusted gateway
      *  @param _owner Wallet address corresponding to the humanity
      *  @param _humanityId ID of the humanity to update
-     *  @param _expirationTime time when the humanity expires
+     *  @param _expirationTime Time when the humanity expires
+     *  @param _isActive Whether the humanity is claimed
      */
     function receiveUpdate(
         address _owner,
@@ -258,13 +259,13 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         uint40 _expirationTime,
         bool _isActive
     ) external override allowedGateway(msg.sender) {
-        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
+        CrossChainHumanity storage humanity = humanityData[_humanityId];
 
         // Clear humanityId for past owner
-        delete humans[humanity.owner];
+        delete accountHumanity[humanity.owner];
 
         if (_isActive) {
-            humans[_owner] = _humanityId;
+            accountHumanity[_owner] = _humanityId;
             humanity.owner = _owner;
         } else delete humanity.owner;
 
@@ -297,14 +298,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         // Otherwise requires _owner to not be in process of claiming a humanity
         bool success = proofOfHumanity.ccGrantHumanity(_humanityId, _owner, _expirationTime);
 
-        CrossChainHumanity storage humanity = humanityMapping[_humanityId];
+        CrossChainHumanity storage humanity = humanityData[_humanityId];
 
         // Clear human humanityId for past owner
-        delete humans[humanity.owner];
+        delete accountHumanity[humanity.owner];
 
         // Overriding this data in case it is outdated
         if (success) {
-            humans[_owner] = _humanityId;
+            accountHumanity[_owner] = _humanityId;
 
             humanity.owner = _owner;
             humanity.expirationTime = _expirationTime;
@@ -327,7 +328,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function isClaimed(bytes20 _humanityId) external view returns (bool) {
         if (proofOfHumanity.isClaimed(_humanityId)) return true;
 
-        CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+        CrossChainHumanity memory humanity = humanityData[_humanityId];
         return humanity.owner != address(0) && humanity.expirationTime >= block.timestamp;
     }
 
@@ -339,8 +340,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     function isHuman(address _account) external view returns (bool) {
         if (proofOfHumanity.isHuman(_account)) return true;
 
-        bytes20 humanityId = humans[_account];
-        CrossChainHumanity memory humanity = humanityMapping[humanityId];
+        bytes20 humanityId = accountHumanity[_account];
+        CrossChainHumanity memory humanity = humanityData[humanityId];
 
         return !humanity.isHomeChain &&
                 humanityId != bytes20(0x0) &&
@@ -357,7 +358,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         owner = proofOfHumanity.boundTo(_humanityId);
 
         if (owner == address(0x0)) {
-            CrossChainHumanity memory humanity = humanityMapping[_humanityId];
+            CrossChainHumanity memory humanity = humanityData[_humanityId];
 
             if (humanity.expirationTime >= block.timestamp) owner = humanity.owner;
         }
@@ -372,8 +373,8 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         humanityId = proofOfHumanity.humanityOf(_account);
 
         if (humanityId == bytes20(0x0)) {
-            humanityId = humans[_account];
-            CrossChainHumanity memory humanity = humanityMapping[humanityId];
+            humanityId = accountHumanity[_account];
+            CrossChainHumanity memory humanity = humanityData[humanityId];
 
             if (humanity.owner != _account || block.timestamp > humanity.expirationTime) humanityId = bytes20(0x0);
         }
