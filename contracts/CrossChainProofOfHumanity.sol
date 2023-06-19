@@ -47,6 +47,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Cooldown a humanity has to wait for transferring again after a past received transfer.
     /// @dev Used to avoid exploiting transfer functionality to evade revocation requests.
     uint256 public transferCooldown;
+    
+    /// @dev Gap for possible future versions storage layout changes.
+    uint256[50] internal __gap;
 
     /// @dev Mapping of the received transfer hashes
     mapping(bytes32 => bool) public receivedTransferHashes;
