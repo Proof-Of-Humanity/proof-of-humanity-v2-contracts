@@ -462,7 +462,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint40 _failedRevocationCooldown,
         uint256[3] memory _multipliers,
         uint32 _requiredNumberOfVouches
-    ) public initializer {
+    ) public payable initializer {
         wNative = _wNative;
         governor = msg.sender;
         requestBaseDeposit = _requestBaseDeposit;
@@ -566,7 +566,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @param _governor The address of the new governor.
      */
-    function changeGovernor(address _governor) external onlyGovernor {
+    function changeGovernor(address _governor) external payable onlyGovernor {
         governor = _governor;
         emit GovernorChanged(_governor);
     }
@@ -577,7 +577,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @param _requestBaseDeposit The new base amount of wei required to make a new request.
      */
-    function changeRequestBaseDeposit(uint256 _requestBaseDeposit) external onlyGovernor {
+    function changeRequestBaseDeposit(uint256 _requestBaseDeposit) external payable onlyGovernor {
         requestBaseDeposit = _requestBaseDeposit;
         emit RequestBaseDepositChanged(_requestBaseDeposit);
     }
@@ -599,7 +599,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint40 _renewalPeriodDuration,
         uint40 _challengePeriodDuration,
         uint40 _failedRevocationCooldown
-    ) external onlyGovernor {
+    ) external payable onlyGovernor {
         humanityLifespan = _humanityLifespan;
         renewalPeriodDuration = _renewalPeriodDuration;
         challengePeriodDuration = _challengePeriodDuration;
@@ -618,7 +618,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @param _requiredNumberOfVouches The new required number of vouches.
      */
-    function changeRequiredNumberOfVouches(uint32 _requiredNumberOfVouches) external onlyGovernor {
+    function changeRequiredNumberOfVouches(uint32 _requiredNumberOfVouches) external payable onlyGovernor {
         requiredNumberOfVouches = _requiredNumberOfVouches;
         emit RequiredNumberOfVouchesChanged(_requiredNumberOfVouches);
     }
@@ -635,7 +635,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 _sharedStakeMultiplier,
         uint256 _winnerStakeMultiplier,
         uint256 _loserStakeMultiplier
-    ) external onlyGovernor {
+    ) external payable onlyGovernor {
         sharedStakeMultiplier = _sharedStakeMultiplier;
         winnerStakeMultiplier = _winnerStakeMultiplier;
         loserStakeMultiplier = _loserStakeMultiplier;
@@ -653,7 +653,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     function changeMetaEvidence(
         string calldata _registrationMetaEvidence,
         string calldata _clearingMetaEvidence
-    ) external onlyGovernor {
+    ) external payable onlyGovernor {
         ArbitratorData storage arbitratorData = arbitratorDataHistory[arbitratorDataHistory.length - 1];
         uint96 newMetaEvidenceUpdates = arbitratorData.metaEvidenceUpdates + 1;
         arbitratorDataHistory.push(
@@ -674,7 +674,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _arbitrator The new trusted arbitrator to be used in the next requests.
      *  @param _arbitratorExtraData The extra data used by the new arbitrator.
      */
-    function changeArbitrator(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) external onlyGovernor {
+    function changeArbitrator(IArbitrator _arbitrator, bytes calldata _arbitratorExtraData) external payable onlyGovernor {
         ArbitratorData storage arbitratorData = arbitratorDataHistory[arbitratorDataHistory.length - 1];
         arbitratorDataHistory.push(
             ArbitratorData({
@@ -692,7 +692,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *
      *  @param _crossChainProofOfHumanity The new cross-chain instance to be used.
      */
-    function changeCrossChainProofOfHumanity(address _crossChainProofOfHumanity) external onlyGovernor {
+    function changeCrossChainProofOfHumanity(address _crossChainProofOfHumanity) external payable onlyGovernor {
         crossChainProofOfHumanity = _crossChainProofOfHumanity;
         emit CrossChainProxyChanged(_crossChainProofOfHumanity);
     }
