@@ -293,14 +293,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param requester The address of the requester.
      *  @param humanityId The humanity ID.
      *  @param requestId The ID of the request.
-     *  @param evidence The evidence provided for the claim.
      *  @param name The name associated with the human.
      */
     event ClaimRequest(
         address indexed requester,
         bytes20 indexed humanityId,
         uint256 requestId,
-        string evidence,
         string name
     );
 
@@ -308,17 +306,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param requester The address of the requester.
      *  @param humanityId The humanity ID.
      *  @param requestId The ID of the request.
-     *  @param evidence The evidence provided for the renewal request.
      */
-    event RenewalRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string evidence);
+    event RenewalRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId);
 
     /** @dev Emitted when a revocation request is made.
      *  @param requester The address of the requester.
      *  @param humanityId The humanity ID.
      *  @param requestId The ID of the request.
-     *  @param evidence The evidence provided for the revocation request.
      */
-    event RevocationRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string evidence);
+    event RevocationRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId);
 
     /** @dev Emitted when an on-chain vouch is added.
      *  @param voucherAccount The address of the voucher.
@@ -358,15 +354,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param challengeId The ID of the challenge.
      *  @param reason The reason for the challenge.
      *  @param disputeId The created dispute ID.
-     *  @param evidence The evidence provided for the challenge.
      */
     event RequestChallenged(
         bytes20 humanityId,
         uint256 requestId,
         uint256 challengeId,
         Reason reason,
-        uint256 disputeId,
-        string evidence
+        uint256 disputeId
     );
 
     /** @dev Emitted when humanity is succesfully claimed.
@@ -725,6 +719,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Make a request to enter the registry. Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {ClaimRequest} event.
+     *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
      *  - Humanity ID not null.
@@ -743,9 +738,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(!isHuman(msg.sender));
         require(humanity.owner == address(0x0) || humanity.expirationTime < block.timestamp);
 
-        uint256 requestId = _requestHumanity(_humanityId, _evidence);
+        uint256 requestId = _requestHumanity(_humanityId);
 
-        emit ClaimRequest(msg.sender, _humanityId, requestId, _evidence, _name);
+        emit ClaimRequest(msg.sender, _humanityId, requestId, _name);
+        emit Evidence(
+            arbitratorDataHistory[arbitratorDataHistory.length - 1].arbitrator,
+            uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
+            msg.sender,
+            _evidence
+        );
     }
 
     /** @dev Make a request to renew humanity's lifespan.
@@ -753,6 +754,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @notice Paying the full deposit right away is not required as it can be crowdfunded later.
      *
      *  @dev Emits {RenewalRequest} event.
+     *  @dev Emits {Evidence} event.
      *
      *  @dev Requirements:
      *  - Sender must be current owner of the humanity.
@@ -769,9 +771,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(humanity.owner == msg.sender);
         require(humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
 
-        uint256 requestId = _requestHumanity(humanityId, _evidence);
+        uint256 requestId = _requestHumanity(humanityId);
 
-        emit RenewalRequest(msg.sender, humanityId, requestId, _evidence);
+        emit RenewalRequest(msg.sender, humanityId, requestId);
+        emit Evidence(
+            arbitratorDataHistory[arbitratorDataHistory.length - 1].arbitrator,
+            uint256(keccak256(abi.encodePacked(humanityId, requestId))),
+            msg.sender,
+            _evidence
+        );
     }
 
     /** @dev Make a request to revoke a humanity.
@@ -822,15 +830,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         require(_contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost));
 
-        emit RevocationRequest(msg.sender, _humanityId, requestId, _evidence);
-
-        if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorData.arbitrator,
-                uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
-                msg.sender,
-                _evidence
-            );
+        emit RevocationRequest(msg.sender, _humanityId, requestId);
+        emit Evidence(
+            arbitratorData.arbitrator,
+            uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
+            msg.sender,
+            _evidence
+        );
     }
 
     /** @notice Fund the requester's deposit. Accepts enough ETH to cover the deposit, reimburses the rest.
@@ -1080,20 +1086,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         request.status = Status.Disputed;
 
-        emit RequestChallenged(_humanityId, _requestId, challengeId, _reason, disputeId, _evidence);
-
         // Hash evidenceGroupId to make sure it's unique.
         uint256 evidenceGroupId = uint256(keccak256(abi.encodePacked(_humanityId, _requestId)));
 
+        emit RequestChallenged(_humanityId, _requestId, challengeId, _reason, disputeId);
         emit Dispute(
             arbitratorData.arbitrator,
             disputeId,
             2 * arbitratorData.metaEvidenceUpdates + (request.revocation ? 1 : 0),
             evidenceGroupId
         );
-
-        if (bytes(_evidence).length > 0)
-            emit Evidence(arbitratorData.arbitrator, evidenceGroupId, msg.sender, _evidence);
+        emit Evidence(arbitratorData.arbitrator, evidenceGroupId, msg.sender, _evidence);
     }
 
     /** @dev Take up to the total amount required to fund a side of an appeal. Reimburse the rest. Create an appeal if both sides are fully funded.
@@ -1435,16 +1438,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /** @notice Make a request to claim/renew the humanity.
      *
-     *  @dev Emits {Evidence} event.
-     *
      *  @dev Requirements:
      *  - Sender has no ongoing claim.
      *
      *  @param _humanityId Id of the humanity the request is for.
-     *  @param _evidence A link to evidence using its URI.
      *  @return requestId Id of the created request.
      */
-    function _requestHumanity(bytes20 _humanityId, string calldata _evidence) internal returns (uint96 requestId) {
+    function _requestHumanity(bytes20 _humanityId) internal returns (uint96 requestId) {
         // Human must not be in the process of claiming a humanity.
         require(humanityData[accountHumanity[msg.sender]].requestCount[msg.sender] == 0);
 
@@ -1467,14 +1467,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             requestBaseDeposit
         );
         _contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost);
-
-        if (bytes(_evidence).length > 0)
-            emit Evidence(
-                arbitratorData.arbitrator,
-                uint256(keccak256(abi.encodePacked(_humanityId, requestId))),
-                msg.sender,
-                _evidence
-            );
     }
 
     /** @dev Make a fee contribution. Reimburse remaining ETH.
@@ -1494,9 +1486,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Party _side,
         uint256 _totalRequired
     ) internal returns (bool paidInFull) {
-        Round storage round = humanityData[_humanityId].requests[_requestId].challenges[_challengeId].rounds[
-            _roundId
-        ];
+        Round storage round = humanityData[_humanityId].requests[_requestId].challenges[_challengeId].rounds[_roundId];
 
         uint256 remainingETH;
         uint256 contribution = msg.value;
