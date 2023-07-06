@@ -281,7 +281,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Emitted when humanity is revoked directly via cross-chain operations or because of bad vouching.
      *  @param humanityId The humanity ID.
      */
-    event HumanityDischargeDirectly(bytes20 indexed humanityId);
+    event HumanityDischargedDirectly(bytes20 indexed humanityId);
 
     /** @dev Emitted when a claim request for a humanityId is made.
      *  @param requester The address of the requester.
@@ -524,7 +524,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /** @dev Directly remove a humanity via cross-chain instance when initiating a transfer.
      *  @dev Returns humanityId and expirationTime for better interaction with CrossChainPoH instance.
      *
-     *  @dev Emits {HumanityDischargeDirectly} event.
+     *  @dev Emits {HumanityDischargedDirectly} event.
      *
      *  @dev Requirements:
      *  - Owner of the humanity must be _account.
@@ -551,7 +551,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         delete humanity.owner;
 
-        emit HumanityDischargeDirectly(humanityId);
+        emit HumanityDischargedDirectly(humanityId);
     }
 
     /** @dev Change the governor of the contract.
@@ -1187,7 +1187,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Profiles who vouched for successfully challenged claim requests are penalized.
      *
      *  @dev Emits {VouchesProcessed} event.
-     *  @dev Emits {HumanityDischargeDirectly} event.
+     *  @dev Emits {HumanityDischargedDirectly} event.
      *
      *  @dev Requirements:
      *  - Request must be resolved.
@@ -1222,7 +1222,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
                 delete voucherHumanity.owner;
 
-                emit HumanityDischargeDirectly(request.vouches[lastProcessed]);
+                emit HumanityDischargedDirectly(request.vouches[lastProcessed]);
             }
 
             unchecked {
