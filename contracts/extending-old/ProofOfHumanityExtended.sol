@@ -768,8 +768,13 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         Humanity storage humanity = humanityData[humanityId];
 
-        require(humanity.owner == msg.sender);
-        require(humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
+        if (humanity.owner == msg.sender) 
+            require(humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
+        else {
+            humanityId = bytes20(msg.sender);
+            (bool registered, uint40 expirationTime) = forkModule.getSubmissionInfo(msg.sender);
+            require(registered && expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
+        }
 
         uint256 requestId = _requestHumanity(humanityId);
 
