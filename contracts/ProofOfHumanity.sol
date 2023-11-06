@@ -511,7 +511,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         // Must not be in the process of claiming a humanity.
         require(humanityData[accountHumanity[_account]].requestCount[_account] == 0);
-   
+
         humanity.owner = _account;
         humanity.expirationTime = _expirationTime;
         accountHumanity[_account] = _humanityId;
@@ -782,7 +782,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         require(!humanity.pendingRevocation);
         require(humanity.lastFailedRevocationTime.addCap40(failedRevocationCooldown) < block.timestamp);
 
-        uint96 requestId = uint96(humanity.requests.length);
+        uint256 requestId = humanity.requests.length;
 
         Request storage request = humanity.requests.push();
         request.status = Status.Resolving;
@@ -1006,7 +1006,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function challengeRequest(
         bytes20 _humanityId,
-        uint96 _requestId,
+        uint256 _requestId,
         Reason _reason,
         string calldata _evidence
     ) external payable {
@@ -1032,7 +1032,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
             request.currentReason = _reason;
         }
 
-        uint96 challengeId = request.lastChallengeId++;
+        uint256 challengeId = request.lastChallengeId++;
         Challenge storage challenge = request.challenges[challengeId];
         Round storage round = challenge.rounds[0];
 
@@ -1054,8 +1054,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
         DisputeData storage disputeData = disputeIdToData[address(arbitratorData.arbitrator)][disputeId];
         disputeData.humanityId = _humanityId;
-        disputeData.requestId = _requestId;
-        disputeData.challengeId = challengeId;
+        disputeData.requestId = uint96(_requestId);
+        disputeData.challengeId = uint96(challengeId);
 
         request.status = Status.Disputed;
 
@@ -1209,7 +1209,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Reason currentReason = request.currentReason;
         // Penalty is applied for sybil attacks.
         bool applyPenalty = request.ultimateChallenger != address(0x0) &&
-            (currentReason == Reason.Duplicate || currentReason == Reason.DoesNotExist);
+            (currentReason == Reason.SybilAttack || currentReason == Reason.IdentityTheft);
 
         while (lastProcessed < endIndex) {
             Humanity storage voucherHumanity = humanityData[request.vouches[lastProcessed]];
@@ -1386,7 +1386,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _requestId Id of request the evidence is related to.
      *  @param _evidence A link to an evidence using its URI.
      */
-    function submitEvidence(bytes20 _humanityId, uint96 _requestId, string calldata _evidence) external {
+    function submitEvidence(bytes20 _humanityId, uint256 _requestId, string calldata _evidence) external {
         emit Evidence(
             arbitratorDataHistory[humanityData[_humanityId].requests[_requestId].arbitratorDataId].arbitrator,
             uint256(keccak256(abi.encodePacked(_humanityId, _requestId))),
@@ -1405,13 +1405,13 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _humanityId Id of the humanity the request is for.
      *  @return requestId Id of the created request.
      */
-    function _requestHumanity(bytes20 _humanityId) internal returns (uint96 requestId) {
+    function _requestHumanity(bytes20 _humanityId) internal returns (uint256 requestId) {
         // Human must not be in the process of claiming a humanity.
         require(humanityData[accountHumanity[msg.sender]].requestCount[msg.sender] == 0);
 
         Humanity storage humanity = humanityData[_humanityId];
 
-        requestId = uint96(humanity.requests.length);
+        requestId = humanity.requests.length;
 
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
