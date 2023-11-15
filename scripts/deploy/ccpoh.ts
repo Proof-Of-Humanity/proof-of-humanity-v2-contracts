@@ -1,31 +1,29 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers, getChainId, upgrades } from "hardhat";
 import { Addresses, supported } from "../consts";
-import { CrossChainProofOfHumanity, ProofOfHumanity } from "../../typechain-types";
+import { CrossChainProofOfHumanity, ProofOfHumanity, ProofOfHumanity__factory } from "../../typechain-types";
 
 const TRANSFER_COOLDOWN = 7;
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = await deployer.getChainId();
+  const chainId = +(await getChainId());
 
-  const poh = (await ethers.getContractFactory("ProofOfHumanity", deployer)).attach(
-    Addresses[chainId].POH
-  ) as ProofOfHumanity;
+  const poh = new ProofOfHumanity__factory(deployer).attach(Addresses[chainId].POH) as ProofOfHumanity;
 
   const CrossChainPoH = await ethers.getContractFactory("CrossChainProofOfHumanity", deployer);
   const crossChainPoH = (await upgrades.deployProxy(CrossChainPoH, [
     Addresses[chainId].POH,
     TRANSFER_COOLDOWN,
-  ])) as CrossChainProofOfHumanity;
+  ])) as any as CrossChainProofOfHumanity;
 
   console.log(`
     CrossChainProofOfHumanity deployed to:
-              ${crossChainPoH.address}
+              ${await crossChainPoH.getAddress()}
 
-    tx# ${crossChainPoH.deployTransaction.hash}
+    tx# ${crossChainPoH.deploymentTransaction()?.hash}
   `);
 
-  await (await poh.connect(deployer).changeCrossChainProofOfHumanity(crossChainPoH.address)).wait();
+  await poh.changeCrossChainProofOfHumanity(await crossChainPoH.getAddress());
 
   console.log(`
     CrossChain changed:

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.18;
+pragma solidity 0.8.20;
 
-import "../bridge-gateways/IAMB.sol";
+import {IAMB} from "../bridge-gateways/AMBBridgeGateway.sol";
 
 contract MockAMB is IAMB {
     uint256 private currentMessageId;

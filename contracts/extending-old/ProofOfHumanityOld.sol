@@ -7,7 +7,7 @@
  *  @tools: [MythX*]
  */
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.20;
 
 import "@kleros/erc-792/contracts/IArbitrable.sol";
 import "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";

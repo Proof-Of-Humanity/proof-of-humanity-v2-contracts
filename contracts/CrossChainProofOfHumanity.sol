@@ -5,7 +5,7 @@
  *  @deployments: []
  *  SPDX-License-Identifier: MIT
  */
-pragma solidity 0.8.18;
+pragma solidity 0.8.20;
 
 import {IBridgeGateway} from "./bridge-gateways/IBridgeGateway.sol";
 import {IProofOfHumanity} from "./interfaces/IProofOfHumanity.sol";

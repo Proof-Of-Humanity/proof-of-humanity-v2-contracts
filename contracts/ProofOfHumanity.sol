@@ -6,7 +6,7 @@
  *  SPDX-License-Identifier: MIT
  */
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.20;
 
 import {IArbitrable} from "@kleros/erc-792/contracts/IArbitrable.sol";
 import {IEvidence} from "@kleros/erc-792/contracts/erc-1497/IEvidence.sol";
@@ -61,9 +61,9 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     enum Reason {
         None, // No reason specified. This option should be used to challenge removal requests.
         IncorrectSubmission, // Request does not comply with the rules.
-        Deceased, // Human has existed but does not exist anymore.
-        Duplicate, // Human is already registered.
-        DoesNotExist // Human is not real. For example, this can be used for videos showing computer generated persons.
+        IdentityTheft, // Attempt to claim the humanity ID of another human.
+        SybilAttack, // Duplicate or human does not exist.
+        Deceased // Human has existed but does not exist anymore.
     }
 
     enum Status {

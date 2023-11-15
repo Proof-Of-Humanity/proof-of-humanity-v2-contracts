@@ -1,34 +1,46 @@
-import { ethers } from "hardhat";
+import { ethers, getChainId } from "hardhat";
 import {
   AMBBridgeGateway__factory,
+  CentralizedAMB__factory,
   CrossChainProofOfHumanity,
-  OptimismBridgeGateway__factory,
+  CrossChainProofOfHumanity__factory,
 } from "../../typechain-types";
-import { Addresses, supported } from "../consts";
-
-const FOREIGN_CC_PROXY = "0x27c9C7EC137229EEb8E22d9f03084D385b424C78";
+import { Addresses, Chain, supported } from "../consts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = await deployer.getChainId();
+  const chainId = +(await getChainId()) as Chain;
 
-  // const bridgeGateway = await new OptimismBridgeGateway__factory(deployer).deploy(
+  const FOREIGN_CC_PROXY =
+    chainId === Chain.GNOSIS ? Addresses[Chain.SEPOLIA].CROSS_CHAIN : Addresses[Chain.GNOSIS].CROSS_CHAIN;
+
+  const amb = await new CentralizedAMB__factory(deployer).deploy();
+
+  console.log(`
+  CentralizedAMB deployed to:
+              ${await amb.getAddress()}
+
+    tx# ${amb.deploymentTransaction()?.hash}
+  `);
+
   const bridgeGateway = await new AMBBridgeGateway__factory(deployer).deploy(
-    Addresses[chainId].MESSENGER,
-    Addresses[chainId].HOME_CC
+    // Addresses[chainId].MESSENGER,
+    await amb.getAddress(),
+    Addresses[chainId].CROSS_CHAIN
   );
 
   console.log(`
-      Gateway deployed to:
-                ${bridgeGateway.address}
-  
-      tx# ${bridgeGateway.deployTransaction.hash}
-    `);
+    Gateway deployed to:
+              ${await bridgeGateway.getAddress()}
 
-  const crossChainPoH = (await ethers.getContractFactory("CrossChainProofOfHumanity", deployer)).attach(
-    Addresses[chainId].HOME_CC
+    tx# ${bridgeGateway.deploymentTransaction()?.hash}
+  `);
+
+  const crossChainPoH = new CrossChainProofOfHumanity__factory(deployer).attach(
+    Addresses[chainId].CROSS_CHAIN
   ) as CrossChainProofOfHumanity;
-  await crossChainPoH.connect(deployer).addBridgeGateway(bridgeGateway.address, FOREIGN_CC_PROXY);
+
+  await crossChainPoH.addBridgeGateway(await bridgeGateway.getAddress(), FOREIGN_CC_PROXY);
 }
 
 supported()

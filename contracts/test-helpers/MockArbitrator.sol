@@ -6,7 +6,7 @@
  *  @deployments: []
  */
 
-pragma solidity 0.8.18;
+pragma solidity 0.8.20;
 
 import {IArbitrator, IArbitrable} from "@kleros/erc-792/contracts/IArbitrator.sol";
 
@@ -31,7 +31,7 @@ contract MockArbitrator is IArbitrator, IArbitrable {
     /* Storage */
     address public owner = msg.sender;
     uint256 public arbitrationPrice; // Not public because arbitrationCost already acts as an accessor.
-    uint256 public constant NOT_PAYABLE_VALUE = (2**256 - 2) / 2; // High value to be sure that the appeal is too expensive.
+    uint256 public constant NOT_PAYABLE_VALUE = (2 ** 256 - 2) / 2; // High value to be sure that the appeal is too expensive.
     uint256 public timeOut;
 
     mapping(uint256 => AppealDispute) public appealDisputes;
@@ -92,13 +92,10 @@ contract MockArbitrator is IArbitrator, IArbitrable {
      *  @param _extraData Can be used to give additional info on the dispute to be created.
      *  @return disputeID ID of the dispute created.
      */
-    function createDispute(uint256 _choices, bytes memory _extraData)
-        public
-        payable
-        override
-        requireArbitrationFee(_extraData)
-        returns (uint256 disputeID)
-    {
+    function createDispute(
+        uint256 _choices,
+        bytes memory _extraData
+    ) public payable override requireArbitrationFee(_extraData) returns (uint256 disputeID) {
         disputes.push(
             DisputeStruct({
                 arbitrated: IArbitrable(msg.sender),
@@ -163,12 +160,10 @@ contract MockArbitrator is IArbitrator, IArbitrable {
      *  @param _disputeID The ID of the dispute.
      *  @param _extraData Additional info about the appeal.
      */
-    function appeal(uint256 _disputeID, bytes memory _extraData)
-        public
-        payable
-        override
-        requireAppealFee(_disputeID, _extraData)
-    {
+    function appeal(
+        uint256 _disputeID,
+        bytes memory _extraData
+    ) public payable override requireAppealFee(_disputeID, _extraData) {
         if (appealDisputes[_disputeID].arbitrator != IArbitrator(address(0)))
             appealDisputes[_disputeID].arbitrator.appeal{value: msg.value}(
                 appealDisputes[_disputeID].appealDisputeID,
