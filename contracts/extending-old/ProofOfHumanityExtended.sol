@@ -241,7 +241,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     event RequestBaseDepositChanged(uint256 requestBaseDeposit);
 
-    /** @dev Emitted when duration related bariables changed.
+    /** @dev Emitted when duration related variables changed.
      *  @param humanityLifespan The new humanity lifespan.
      *  @param renewalPeriodDuration The new duration of renewal period.
      *  @param challengePeriodDuration The new duration of challenge period.
@@ -1199,7 +1199,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                 delete humanity.owner;
                 humanity.pendingRevocation = false;
 
-                // If not claimed in this contract, dirctly remove in fork module.
+                // If not claimed in this contract, directly remove in fork module.
             } else forkModule.remove(address(_humanityId));
 
             emit HumanityRevoked(_humanityId, _requestId);

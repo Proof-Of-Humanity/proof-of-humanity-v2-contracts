@@ -177,7 +177,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     /** @dev Change the cooldown a humanity has to wait for transferring again after a past received transfer.
-     *  @param _transferCooldown The new duration the humanity has to wait has to wait.
+     *  @param _transferCooldown The new duration the humanity has to wait for transferring again.
      */
     function setTransferCooldown(uint256 _transferCooldown) external onlyGovernor {
         transferCooldown = _transferCooldown;
@@ -321,7 +321,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Receives the transfered humanity from the foreign proxy
      *  @dev Can only be called by a trusted gateway
-     *  @param _owner ID of the human corresponding to the humanity
+     *  @param _owner Address of the human corresponding to the humanity
      *  @param _humanityId ID of the humanity
      *  @param _expirationTime time when the humanity was last claimed
      *  @param _transferHash hash of the transfer.
