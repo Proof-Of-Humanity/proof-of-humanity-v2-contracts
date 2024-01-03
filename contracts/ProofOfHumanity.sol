@@ -235,7 +235,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     event RequestBaseDepositChanged(uint256 requestBaseDeposit);
 
-    /** @dev Emitted when duration related bariables changed.
+    /** @dev Emitted when duration related variables changed.
      *  @param humanityLifespan The new humanity lifespan.
      *  @param renewalPeriodDuration The new duration of renewal period.
      *  @param challengePeriodDuration The new duration of challenge period.

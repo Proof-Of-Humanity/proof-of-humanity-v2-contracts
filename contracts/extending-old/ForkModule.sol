@@ -48,6 +48,9 @@ contract ForkModule is IForkModule {
     /// @dev The removed flag used to overwrite the v1 submission status.
     mapping(address => bool) public removed;
 
+
+    /* Modifiers */
+
     modifier initializer() {
         require(!initialized);
         initialized = true;
