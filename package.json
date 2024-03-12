@@ -14,8 +14,8 @@
     "play": "env-cmd cross-var hardhat run scripts/play.ts --network $NETWORK --show-stack-traces",
     "test": "hardhat test",
     "size": "hardhat size-contracts",
-    "verify-poh": "npx hardhat run scripts/verify/poh.ts --network",
-    "verify-ccpoh": "npx hardhat run scripts/verify/ccpoh.ts --network"
+    "verify-poh": "hardhat run scripts/verify/poh.ts --network",
+    "verify-ccpoh": "hardhat run scripts/verify/ccpoh.ts --network"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",
