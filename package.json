@@ -16,7 +16,8 @@
     "size": "hardhat size-contracts",
     "verify-poh": "hardhat run scripts/verify/poh.ts --network",
     "verify-ccpoh": "hardhat run scripts/verify/ccpoh.ts --network",
-    "verify-gateway": "hardhat run scripts/verify/gateway.ts --network"
+    "verify-gateway": "hardhat run scripts/verify/gateway.ts --network",
+    "verify-messenger": "hardhat run scripts/verify/messenger.ts --network"
   },
   "devDependencies": {
     "@types/chai": "^4.3.0",

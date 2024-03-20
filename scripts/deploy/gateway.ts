@@ -17,7 +17,7 @@ async function main() {
   var messengerAddress = Addresses[chainId].MESSENGER;
   // If the messenger was deployed before we must have its corresponding address in Addresses[chainId].MESSENGER, 
   // otherwise we need to do a deployment of the messenger and use that address for deploying the bridge.
-  if (Addresses[chainId].MESSENGER === '0x') {
+  if (Addresses[chainId].MESSENGER === "0x") {
     const amb = await new CentralizedAMB__factory(deployer).deploy();
     messengerAddress = await amb.getAddress();
     
