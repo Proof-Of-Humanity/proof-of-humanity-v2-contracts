@@ -1,7 +1,7 @@
 import { ethers, getChainId } from "hardhat";
 import {
   AMBBridgeGateway__factory,
-  CentralizedAMB__factory,
+  MockAMB__factory as CentralizedAMB__factory,
   CrossChainProofOfHumanity,
   CrossChainProofOfHumanity__factory,
 } from "../../typechain-types";
@@ -14,18 +14,22 @@ async function main() {
   const FOREIGN_CC_PROXY =
     chainId === Chain.GNOSIS ? Addresses[Chain.SEPOLIA].CROSS_CHAIN : Addresses[Chain.GNOSIS].CROSS_CHAIN;
 
-  const amb = await new CentralizedAMB__factory(deployer).deploy();
+  var messengerAddress = Addresses[chainId].MESSENGER;
+  // If the messenger was deployed before we must have its corresponding address in Addresses[chainId].MESSENGER, 
+  // otherwise we need to do a deployment of the messenger and use that address for deploying the bridge.
+  if (Addresses[chainId].MESSENGER === '0x') {
+    const amb = await new CentralizedAMB__factory(deployer).deploy();
+    messengerAddress = await amb.getAddress();
+    
+    console.log(`
+    CentralizedAMB deployed to: ${messengerAddress}
 
-  console.log(`
-  CentralizedAMB deployed to:
-              ${await amb.getAddress()}
-
-    tx# ${amb.deploymentTransaction()?.hash}
-  `);
+      tx# ${amb.deploymentTransaction()?.hash}
+    `);
+  }
 
   const bridgeGateway = await new AMBBridgeGateway__factory(deployer).deploy(
-    // Addresses[chainId].MESSENGER,
-    await amb.getAddress(),
+    messengerAddress,
     Addresses[chainId].CROSS_CHAIN
   );
 
