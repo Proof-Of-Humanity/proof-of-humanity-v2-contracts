@@ -6,7 +6,7 @@ async function main() {
     const chainId = +(await getChainId());
     await run("verify:verify",
         {
-            address: Addresses[chainId].CC_Implementation
+            address: Addresses[chainId].CROSS_CHAIN
         }
     )
 

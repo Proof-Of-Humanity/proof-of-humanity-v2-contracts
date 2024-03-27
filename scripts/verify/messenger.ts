@@ -1,6 +1,9 @@
 import { getChainId, run } from "hardhat";
 import { Addresses } from "../consts";
 
+// Shouldn't be used unless verifying MockAMB.
+// AMB mediators should provide the corresponding contract addresses
+
 async function main() {
     const chainId = +(await getChainId());
 

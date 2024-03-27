@@ -11,12 +11,19 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chainId = +(await getChainId()) as Chain;
 
-  const FOREIGN_CC_PROXY =
-    chainId === Chain.GNOSIS ? Addresses[Chain.SEPOLIA].CROSS_CHAIN : Addresses[Chain.GNOSIS].CROSS_CHAIN;
-
-  var messengerAddress = Addresses[chainId].MESSENGER;
-  // If the messenger was deployed before we must have its corresponding address in Addresses[chainId].MESSENGER, 
-  // otherwise we need to do a deployment of the messenger and use that address for deploying the bridge.
+  const FOREIGN_CC_PROXY = 
+    (chainId === Chain.CHIADO) ? 
+      Addresses[Chain.SEPOLIA].CROSS_CHAIN : 
+    (chainId === Chain.SEPOLIA) ? 
+      Addresses[Chain.CHIADO].CROSS_CHAIN :
+    (chainId === Chain.GNOSIS) ? 
+      Addresses[Chain.MAINNET].CROSS_CHAIN :
+    //(chainId === Chain.ETH) ? 
+      Addresses[Chain.GNOSIS].CROSS_CHAIN;
+  
+  var messengerAddress = Addresses[chainId].MESSENGER; 
+  // Address of the AMB mediator (ETH-GNO only) specified in Addresses[chainId].MESSENGER
+  // If no address is found the centralized AMB (Mock) will be deployed and its address used for deploying the AMB bridge afterwards.
   if (Addresses[chainId].MESSENGER === "0x") {
     const amb = await new CentralizedAMB__factory(deployer).deploy();
     messengerAddress = await amb.getAddress();
