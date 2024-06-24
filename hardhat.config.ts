@@ -25,7 +25,7 @@ const config: HardhatUserConfig = {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     mainnet : {
       chainId: 1,
-      url: ``,
+      url: `https://mainnet.gateway.tenderly.co`,
       accounts: [process.env.PRIVATE_KEY!],
     },
     gnosis: {
@@ -46,6 +46,7 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: {
+      mainnet: `${process.env.ETHERSCAN_API_KEY!}`,
       sepolia: `${process.env.ETHERSCAN_API_KEY!}`,
       xdai: `${process.env.XDAI_API_KEY!}`,
       chiado: `${process.env.CHIADO_API_KEY!}`,

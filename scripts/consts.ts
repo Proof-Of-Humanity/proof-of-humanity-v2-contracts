@@ -63,8 +63,8 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0x",
     MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e",
     LEGACY: "0x",
-    ARBITRATOR: "0x",
-    W_NATIVE: "0x",
+    ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena
+    W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", //WETH
   },
 };
 
