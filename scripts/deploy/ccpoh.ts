@@ -1,8 +1,6 @@
 import { ethers, getChainId, upgrades } from "hardhat";
-import { Addresses, supported } from "../consts";
+import { Addresses, TRANSFER_COOLDOWN, supported } from "../consts";
 import { CrossChainProofOfHumanity, ProofOfHumanity, ProofOfHumanity__factory } from "../../typechain-types";
-
-const TRANSFER_COOLDOWN = 7;
 
 async function main() {
   const [deployer] = await ethers.getSigners();

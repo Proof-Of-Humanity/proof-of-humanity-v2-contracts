@@ -1,5 +1,6 @@
 import { formatEther } from "ethers";
 import { ethers } from "hardhat";
+import { WeiPerEther } from "ethers";
 
 interface AddressSet {
   POH: string;
@@ -31,8 +32,9 @@ export const Addresses: Record<number, AddressSet> = {
     LEGACY: "0x",
     ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
     W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
+    //PROXY_ADMIN: "",
   },
-  [Chain.CHIADO]: {
+  /* [Chain.CHIADO]: {
     POH: "0x2505C87AA36d9ed18514Ea7473Ac58aeDeb50849",
     POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d",
     CROSS_CHAIN: "0xBEd896A3DEa0E065F05Ba83Fa63322c7b9d67838",
@@ -43,8 +45,8 @@ export const Addresses: Record<number, AddressSet> = {
     ARBITRATOR: "0x34E520dc1d2Db660113b64724e14CEdCD01Ee879",
     W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7",
     //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4",
-  },
-  [Chain.SEPOLIA]: {
+  }, */
+  /* [Chain.SEPOLIA]: {
     POH: "0x29defF3DbEf6f79ef20d3fe4f9CFa0547acCeC0D",
     POH_Implementation: "0xa59974FDc4728178D6CdEa305228D4482146f2FD",
     CROSS_CHAIN: "0xd134748B972A320a73EfDe3AfF7a68718F6bA92c",
@@ -54,6 +56,30 @@ export const Addresses: Record<number, AddressSet> = {
     LEGACY: "0x08Db8FD559cb4e3668f994553871c7eBa7c3941a",
     ARBITRATOR: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879",
     W_NATIVE: "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
+  }, */
+  [Chain.CHIADO]: {
+    POH: "0x2F0f39c3CF5cffc0DeACEb69d3fD883734D67687",
+    POH_Implementation: "0x2cff45c3c5a5acba63a9ba4979de05c27dd2ac0d",
+    CROSS_CHAIN: "0x2f33051DF37Edf2286E3b2B3c7883E1A13D82071",
+    CC_Implementation: "0x4a594f0e73223c9a1ce0efc16da92ffaa193a612",
+    GATEWAY: "0x52C6FC2ffFa6F984A4663Fb8781d11640803720A",
+    MESSENGER: "0x8448E15d0e706C0298dECA99F0b4744030e59d7d",
+    LEGACY: "0x",
+    ARBITRATOR: "0x34E520dc1d2Db660113b64724e14CEdCD01Ee879",
+    W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7",
+    //PROXY_ADMIN: "",
+  },
+  [Chain.SEPOLIA]: {
+    POH: "0x0D4674De96459e00A101656b799ba016fBc45dC1",
+    POH_Implementation: "0xF2D1294225ee75CBf10a9bd2e9Fc35ba55E4b782",
+    CROSS_CHAIN: "0xDb7070C1AE12f83E709FF22c4c51993a570FDF84",
+    CC_Implementation: "0x252f5A28d26b2EfC5E28dD74E277B8f2dE7c1716",
+    GATEWAY: "0xdD6c7e64D85D5aae6A09f8Ca3Bf0668B163Ac35F",
+    MESSENGER: "0xf2546D6648BD2af6a008A7e7C1542BB240329E11",
+    LEGACY: "0xDC605c9094cDdF2af1704c25D7D69A97a08c7E30",
+    ARBITRATOR: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879",
+    W_NATIVE: "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
+    //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
   },
   [Chain.MAINNET]: {
     POH: "0x",
@@ -62,9 +88,10 @@ export const Addresses: Record<number, AddressSet> = {
     CC_Implementation: "0x",
     GATEWAY: "0x",
     MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e",
-    LEGACY: "0x",
+    LEGACY: "0x", // PoH v1
     ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena
     W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", //WETH
+    //PROXY_ADMIN: "",
   },
 };
 
@@ -86,3 +113,34 @@ export const supported = async () => {
   if (!SUPPORTED_NETWORKS.includes(+(await ethers.provider.getNetwork()).chainId.toString()))
     throw new Error("Network not supported");
 };
+
+
+export const ARBITRATOR_EXTRA_DATA =
+  "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
+export const REGISTRATION_META_EVIDENCE = "/ipfs/QmVBbhdZ2N7Ar5xB5oPbmkCaS2QKzibhxGjAaWWjfvZ9Nh";
+export const CLEARING_META_EVIDENCE = "/ipfs/QmRqKmjVk1FcCRcTnuZmMG6SZEBB9LkUJb7Z4SVhJGHEfw";
+
+// INIT PARAMS FOR LAUNCH
+/* export const REQUEST_BASE_DEPOSIT = WeiPerEther / 100n;
+export const HUMANITY_LIFESPAN = 31557600;
+export const RENEWAL_DURATION = 28512000;
+export const CHALLENGE_DURATION = 302400;
+export const FAILED_REV_COOL_DOWN = 302400;
+export const SHARED_MULTIPLIER = 10000;
+export const WINNER_MULTIPLIER = 10000;
+export const LOSER_MULTIPLIER = 20000;
+export const NB_VOUCHES = 1;
+export const TRANSFER_COOLDOWN = 7;
+ */
+
+// INIT PARAMS FOR TEST
+export const REQUEST_BASE_DEPOSIT = WeiPerEther / 100n;
+export const HUMANITY_LIFESPAN = 864000;
+export const RENEWAL_DURATION = 863940;
+export const CHALLENGE_DURATION = 60;
+export const FAILED_REV_COOL_DOWN = 60;
+export const SHARED_MULTIPLIER = 10000;
+export const WINNER_MULTIPLIER = 10000;
+export const LOSER_MULTIPLIER = 20000;
+export const NB_VOUCHES = 1;
+export const TRANSFER_COOLDOWN = 7;

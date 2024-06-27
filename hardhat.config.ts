@@ -51,7 +51,7 @@ const config: HardhatUserConfig = {
       xdai: `${process.env.XDAI_API_KEY!}`,
       chiado: `${process.env.CHIADO_API_KEY!}`,
     },
-    customChains: [
+    customChains: [ // This needs to be commented before deploying and only serves for verifying
       {
         network: "chiado",
         chainId: 10200,

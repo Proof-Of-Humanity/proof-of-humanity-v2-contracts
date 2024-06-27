@@ -25,12 +25,24 @@ contract AMBBridgeGateway is IBridgeGateway, IAMBReceiver {
     address public immutable homeProxy;
     address public foreignGateway;
 
+    /// @dev The address that can make governance changes to the parameters of the contract.
+    address public governor;
+
+
+    /* Modifiers */
+
+    modifier onlyGovernor() {
+        require(msg.sender == governor);
+        _;
+    }
+
     constructor(IAMB _amb, address _homeProxy) {
         amb = _amb;
         homeProxy = _homeProxy;
+        governor = msg.sender;
     }
 
-    function setForeignGateway(address _foreignGateway) public {
+    function setForeignGateway(address _foreignGateway) public onlyGovernor {
         require(foreignGateway == address(0x0), "set!");
         foreignGateway = _foreignGateway;
     }
@@ -43,6 +55,14 @@ contract AMBBridgeGateway is IBridgeGateway, IAMBReceiver {
     function receiveMessage(bytes memory _data) external override {
         require(msg.sender == address(amb), "!amb");
         require(amb.messageSender() == foreignGateway, "!foreignGateway");
-        homeProxy.call(_data);
+        (bool success,) = homeProxy.call(_data);
+        require(success, "!homeProxy");
+    }
+
+    /** @dev Change the governor of the contract.
+     *  @param _governor The address of the new governor.
+     */
+    function changeGovernor(address _governor) external payable onlyGovernor {
+        governor = _governor;
     }
 }

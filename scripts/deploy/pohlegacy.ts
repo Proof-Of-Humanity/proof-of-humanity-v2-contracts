@@ -1,20 +1,9 @@
 import { ethers, getChainId } from "hardhat";
 import { ProofOfHumanityOld__factory } from "../../typechain-types";
-import { Addresses, supported } from "../consts";
-import { WeiPerEther } from "ethers";
-
-const ARBITRATOR_EXTRA_DATA =
-  "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
-const REGISTRATION_META_EVIDENCE = "/ipfs/QmZCsgcnRaDf6KM3LkUZ3o5Z7YuRCHEdxbFP7mrnFTx95v";
-const CLEARING_META_EVIDENCE = "/ipfs/QmP6YTLEoyVnRTSQTcSW1NMvrp2SLGW6VadHApnFrLBYP8";
-const REQUEST_BASE_DEPOSIT = WeiPerEther;
-const HUMANITY_LIFESPAN = 864000;
-const RENEWAL_DURATION = 863940;
-const CHALLENGE_DURATION = 60;
-const SHARED_MULTIPLIER = 10000;
-const WINNER_MULTIPLIER = 10000;
-const LOSER_MULTIPLIER = 20000;
-const NB_VOUCHES = 1;
+import { ARBITRATOR_EXTRA_DATA, Addresses, CHALLENGE_DURATION, CLEARING_META_EVIDENCE, 
+  HUMANITY_LIFESPAN, LOSER_MULTIPLIER, NB_VOUCHES, REGISTRATION_META_EVIDENCE, RENEWAL_DURATION, 
+  REQUEST_BASE_DEPOSIT, SHARED_MULTIPLIER, WINNER_MULTIPLIER, supported 
+} from "../consts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -33,6 +22,13 @@ async function main() {
     NB_VOUCHES
   );
 
+  await pohold.addSubmissionManually(
+    ["0xeba12826643dab0ffa5d586123117c57b2040d80"],
+    ["/ipfs/QmVKcrKPVyaMA1KLQh9FbhYkbbWPR8jZ4UC1DYRWAHnwwe/registration.json"],
+    ["Johnny"]
+  );
+
+  /* 
   await pohold.addSubmissionManually(
     [
       "0xf19d3e30392359440597ffe1d783ab77aebb2b4d",
@@ -83,6 +79,8 @@ async function main() {
       "shotaro",
     ]
   );
+ */
+
   // ["0x1db3439a222c519ab44bb1144fc28167b4fa6ee6", "0x00de4b13153673bcae2616b67bf822500d325fc3"],
   // ["/ipfs/QmQ3zm9y76sPT5Qyaxfpbtmdp8LNNGPrg2CrNYqbzGFokk/registration.json", "/ipfs/QmPa696yBz22Mv8uHEjJJQ7jYCYbLtuJN7HTgHPe12QtaR/registration.json"],
   // ["Vitalik", "Kevin"]
