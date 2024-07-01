@@ -25,7 +25,8 @@ const config: HardhatUserConfig = {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     mainnet : {
       chainId: 1,
-      url: `https://mainnet.gateway.tenderly.co`,
+      //url: `https://mainnet.gateway.tenderly.co/${process.env.TENDERLY_API_KEY!}`,
+      url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}`,
       accounts: [process.env.PRIVATE_KEY!],
     },
     gnosis: {
@@ -40,7 +41,7 @@ const config: HardhatUserConfig = {
     },
     sepolia: {
       chainId: 11155111,
-      url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY!}`,
+      url: `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY_SEPOLIA!}`,
       accounts: [process.env.PRIVATE_KEY!],
     },
   },

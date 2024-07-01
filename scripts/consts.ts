@@ -22,7 +22,7 @@ export enum Chain {
 }
 
 export const Addresses: Record<number, AddressSet> = {
-  [Chain.GNOSIS]: {
+  /* [Chain.GNOSIS]: { // OLD
     POH: "0x4a594f0e73223c9a1CE0EfC16da92fFaA193a612",
     POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d",
     CROSS_CHAIN: "0x2C692919Da3B5471F9Ac6ae1C9D1EE54F8111f76",
@@ -33,8 +33,8 @@ export const Addresses: Record<number, AddressSet> = {
     ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
     W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
     //PROXY_ADMIN: "",
-  },
-  /* [Chain.CHIADO]: {
+  }, */
+  /* [Chain.CHIADO]: { // OLD
     POH: "0x2505C87AA36d9ed18514Ea7473Ac58aeDeb50849",
     POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d",
     CROSS_CHAIN: "0xBEd896A3DEa0E065F05Ba83Fa63322c7b9d67838",
@@ -46,7 +46,7 @@ export const Addresses: Record<number, AddressSet> = {
     W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7",
     //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4",
   }, */
-  /* [Chain.SEPOLIA]: {
+  /* [Chain.SEPOLIA]: { // OLD
     POH: "0x29defF3DbEf6f79ef20d3fe4f9CFa0547acCeC0D",
     POH_Implementation: "0xa59974FDc4728178D6CdEa305228D4482146f2FD",
     CROSS_CHAIN: "0xd134748B972A320a73EfDe3AfF7a68718F6bA92c",
@@ -88,9 +88,21 @@ export const Addresses: Record<number, AddressSet> = {
     CC_Implementation: "0x",
     GATEWAY: "0x",
     MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e",
-    LEGACY: "0x", // PoH v1
+    LEGACY: "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb", // PoH v1
     ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena
     W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", //WETH
+    //PROXY_ADMIN: "",
+  },
+  [Chain.GNOSIS]: {
+    POH: "0x",
+    POH_Implementation: "0x",
+    CROSS_CHAIN: "0x",
+    CC_Implementation: "0x",
+    GATEWAY: "0x",
+    MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59",
+    LEGACY: "0x",
+    ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
+    W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
     //PROXY_ADMIN: "",
   },
 };
@@ -117,13 +129,15 @@ export const supported = async () => {
 
 export const ARBITRATOR_EXTRA_DATA =
   "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
-export const REGISTRATION_META_EVIDENCE = "/ipfs/QmVBbhdZ2N7Ar5xB5oPbmkCaS2QKzibhxGjAaWWjfvZ9Nh";
+export const REGISTRATION_META_EVIDENCE = "/ipfs/QmadJhyPxhk5AYrdE6JMwhC7TpsA47YZwFP28VKkr1ffJF";
 export const CLEARING_META_EVIDENCE = "/ipfs/QmRqKmjVk1FcCRcTnuZmMG6SZEBB9LkUJb7Z4SVhJGHEfw";
 
 // INIT PARAMS FOR LAUNCH
-/* export const REQUEST_BASE_DEPOSIT = WeiPerEther / 100n;
+export const REQUEST_BASE_DEPOSIT_MAINNET = 47500000000000000n; // 0.0475 ETHs
+export const REQUEST_BASE_DEPOSIT_GNOSIS = 110000000000000000000n; // 110 XDAI
+
 export const HUMANITY_LIFESPAN = 31557600;
-export const RENEWAL_DURATION = 28512000;
+export const RENEWAL_DURATION = 28512000; // One month before expiration
 export const CHALLENGE_DURATION = 302400;
 export const FAILED_REV_COOL_DOWN = 302400;
 export const SHARED_MULTIPLIER = 10000;
@@ -131,10 +145,12 @@ export const WINNER_MULTIPLIER = 10000;
 export const LOSER_MULTIPLIER = 20000;
 export const NB_VOUCHES = 1;
 export const TRANSFER_COOLDOWN = 7;
- */
 
 // INIT PARAMS FOR TEST
-export const REQUEST_BASE_DEPOSIT = WeiPerEther / 100n;
+export const REQUEST_BASE_DEPOSIT_SEPOLIA = WeiPerEther / 100n; // Used by pohlegacy to simulate pohv1 in Sepolia
+/* export const REQUEST_BASE_DEPOSIT_MAINNET = WeiPerEther / 100n;
+export const REQUEST_BASE_DEPOSIT_GNOSIS = WeiPerEther / 100n;
+
 export const HUMANITY_LIFESPAN = 864000;
 export const RENEWAL_DURATION = 863940;
 export const CHALLENGE_DURATION = 60;
@@ -143,4 +159,4 @@ export const SHARED_MULTIPLIER = 10000;
 export const WINNER_MULTIPLIER = 10000;
 export const LOSER_MULTIPLIER = 20000;
 export const NB_VOUCHES = 1;
-export const TRANSFER_COOLDOWN = 7;
+export const TRANSFER_COOLDOWN = 7; */
