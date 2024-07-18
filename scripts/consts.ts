@@ -82,23 +82,27 @@ export const Addresses: Record<number, AddressSet> = {
     //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
   },
   [Chain.MAINNET]: {
-    POH: "0x",
-    POH_Implementation: "0x",
-    CROSS_CHAIN: "0x",
-    CC_Implementation: "0x",
-    GATEWAY: "0x",
+    POH: "0x6cbEdC1920090EA4F28A38C1CD61c8D37b2cc323",
+    POH_Implementation: "0xe6573F65efAbc351b69F9b73ed8e95772698938b",
+    CROSS_CHAIN: "0xD6F4E9d906CD7736a83e0AFa7EE9491658B4afA7",
+    CC_Implementation: "0x064B1132D9A9c43Df269FeAD9e80c195Fb9cd916",
+    GATEWAY: "0xb89D480e56Fe4915466eAbE64733adb6EfEfFc81",
     MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e",
     LEGACY: "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb", // PoH v1
     ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena
     W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", //WETH
     //PROXY_ADMIN: "",
+    //FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
   },
   [Chain.GNOSIS]: {
-    POH: "0x",
-    POH_Implementation: "0x",
-    CROSS_CHAIN: "0x",
-    CC_Implementation: "0x",
-    GATEWAY: "0x",
+    POH: "0xe6573F65efAbc351b69F9b73ed8e95772698938b",
+    POH_Implementation: "0xf183073784092ce088f85Ec74d3841ACe8Ba0609", // Finally upgradedProxy reference to this implementation
+    //POH_Implementation: "0xD6F4E9d906CD7736a83e0AFa7EE9491658B4afA7", // New Verified implementation
+    //POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d", // Verified implementation
+    //POH_Implementation: "0xF230c60C40D70a6AE8Bd20c92243A1Cf67c6C2A7", // Old implementation (Unverified) triggered by the contractFactory
+    CROSS_CHAIN: "0x6cbEdC1920090EA4F28A38C1CD61c8D37b2cc323",
+    CC_Implementation: "0xc664a8d43601109fc50f3bcf22f29e9119ab2f6d",
+    GATEWAY: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
     MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59",
     LEGACY: "0x",
     ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",

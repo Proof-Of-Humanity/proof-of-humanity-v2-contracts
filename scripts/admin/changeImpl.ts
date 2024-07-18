@@ -1,16 +1,21 @@
-import { ethers, upgrades, getChainId } from "hardhat";
+
+import { ethers, upgrades, getChainId, artifacts } from "hardhat";
 import { Addresses } from "../consts";
 
 async function main() {
-    /* const [signer] = await ethers.getSigners();
-    console.log(">>>>>> ", signer); */
+  const [signer] = await ethers.getSigners();
+  console.log(">>>>>> SIGNER: ", signer.address);
+  
   const chainId = +(await getChainId());
-  const PoH = await ethers.getContractFactory("ProofOfHumanity");
-  await upgrades.validateImplementation(PoH);
-  const deployment = await upgrades.forceImport(Addresses[chainId].POH, PoH);
-  /* await upgrades.prepareUpgrade(Addresses[chainId].POH, PoH); */
-  //await upgrades.upgradeProxy(Addresses[chainId].POH, PoH);
-  console.log("PoH upgraded");
+
+  const artifact = await artifacts.readArtifact("ProofOfHumanity");
+
+  const PoH = await ethers.getContractFactoryFromArtifact(artifact, signer);
+  await upgrades.upgradeProxy(Addresses[chainId].POH, PoH, {redeployImplementation: 'always'});
+
+  console.log("Done!");
 }
 
 main();
+
+//yarn hardhat run scripts/admin/changeImpl.ts --network gnosis
