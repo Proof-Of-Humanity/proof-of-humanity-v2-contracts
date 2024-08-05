@@ -8,6 +8,7 @@ interface ICrossChainProofOfHumanity {
         address _owner,
         bytes20 _humanityId,
         uint40 _expirationTime,
+        string calldata _evidence,
         bytes32 _transferHash
     ) external;
 }

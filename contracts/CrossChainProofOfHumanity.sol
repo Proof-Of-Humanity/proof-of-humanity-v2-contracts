@@ -121,12 +121,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param humanityId The humanity ID.
      *  @param owner The address of the owner.
      *  @param expirationTime The expiration time of the humanity.
+     *  @param _evidence Link to evidence using its URI.
      *  @param transferHash The hash of the transfer.
      */
     event TransferReceived(
         bytes20 indexed humanityId,
         address indexed owner,
         uint40 expirationTime,
+        string _evidence,
         bytes32 transferHash
     );
 
@@ -243,8 +245,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Execute transfering the humanity to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
+     *  @param _evidence Link to evidence using its URI.
      */
-    function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
+    function transferHumanity(address _bridgeGateway, string calldata _evidence) external allowedGateway(_bridgeGateway) {
         // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
         (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccDischargeHumanity(msg.sender);
 
@@ -278,6 +281,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
                 msg.sender,
                 humanityId,
                 expirationTime,
+                _evidence,
                 tHash
             )
         );
@@ -324,12 +328,14 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _owner Address of the human corresponding to the humanity
      *  @param _humanityId ID of the humanity
      *  @param _expirationTime time when the humanity was last claimed
+     *  @param _evidence Link to evidence using its URI.
      *  @param _transferHash hash of the transfer.
      */
     function receiveTransfer(
         address _owner,
         bytes20 _humanityId,
         uint40 _expirationTime,
+        string calldata _evidence,
         bytes32 _transferHash
     ) external override allowedGateway(msg.sender) {
         // Once transfer hash is flagged as received it is not possible to receive the transfer again
@@ -356,7 +362,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
         receivedTransferHashes[_transferHash] = true;
 
-        emit TransferReceived(_humanityId, _owner, _expirationTime, _transferHash);
+        emit TransferReceived(_humanityId, _owner, _expirationTime, _evidence, _transferHash);
     }
 
     // ========== VIEWS ==========
