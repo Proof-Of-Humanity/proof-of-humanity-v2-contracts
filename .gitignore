@@ -12,7 +12,6 @@ artifacts
 
 typechain-types
 
-yarn.lock
 yarn-error.log
 
 .openzeppelin
