@@ -1,8 +1,37 @@
 name: Slither Analysis
-on: [push]
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: crytic/slither-action@v0.2.0
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+
+      - name: Install Yarn
+        run: npm install --global yarn
+      
+      - uses: crytic/slither-action@v0.4.0
+        id: slither
+        continue-on-error: true
+        with:
+          node-version: 20
+          sarif: results.sarif
+          fail-on: medium
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
+
