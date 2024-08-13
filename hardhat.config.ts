@@ -24,19 +24,23 @@ const config: HardhatUserConfig = {
   networks: {
     hardhat: { chainId: 1, allowUnlimitedContractSize: true },
     mainnet: {
-      chainId: 1,
-      //url: `https://mainnet.gateway.tenderly.co/${process.env.TENDERLY_API_KEY!}`,
-      //url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}`,
-      url: process.env.INFURA_API_KEY_PRIVATE
-        ? `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY_PRIVATE!}`
-        : "https://eth.llamarpc.com",
-      accounts: [process.env.PRIVATE_KEY!],
+      ...{
+        chainId: 1,
+        //url: `https://mainnet.gateway.tenderly.co/${process.env.TENDERLY_API_KEY!}`,
+        //url: `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY!}`,
+        url: process.env.INFURA_API_KEY_PRIVATE
+          ? `https://mainnet.infura.io/v3/${process.env.INFURA_API_KEY_PRIVATE!}`
+          : "https://eth.llamarpc.com",
+      },
+      ...(process.env.PRIVATE_KEY ? { accounts: [process.env.PRIVATE_KEY] } : {}),
     },
     gnosis: {
-      chainId: 100,
-      url: `https://rpc.gnosischain.com/`,
-      //url: `https://rpc.gnosis.gateway.fm`,
-      accounts: [process.env.PRIVATE_KEY!],
+      ...{
+        chainId: 100,
+        url: `https://rpc.gnosischain.com/`,
+        //url: `https://rpc.gnosis.gateway.fm`,
+      },
+      ...(process.env.PRIVATE_KEY ? { accounts: [process.env.PRIVATE_KEY] } : {}),
     },
     /* chiado: {
       chainId: 10200,
@@ -44,11 +48,13 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY!],
     }, */
     sepolia: {
-      chainId: 11155111,
-      url: process.env.INFURA_API_KEY_PRIVATE
-        ? `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY_PRIVATE}`
-        : "https://ethereum-sepolia-rpc.publicnode.com",
-      accounts: [process.env.PRIVATE_KEY!],
+      ...{
+        chainId: 11155111,
+        url: process.env.INFURA_API_KEY_PRIVATE
+          ? `https://sepolia.infura.io/v3/${process.env.INFURA_API_KEY_PRIVATE}`
+          : "https://ethereum-sepolia-rpc.publicnode.com",
+      },
+      ...(process.env.PRIVATE_KEY ? { accounts: [process.env.PRIVATE_KEY] } : {}),
     },
   },
   etherscan: {
