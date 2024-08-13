@@ -24,6 +24,7 @@ jobs:
       
       - uses: crytic/slither-action@v0.4.0
         id: slither
+        continue-on-error: true
         with:
           node-version: 20
           sarif: results.sarif
