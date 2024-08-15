@@ -104,7 +104,7 @@ contract ForkModule is IForkModule {
 
         expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
-        require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "registered!");
+        require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "Not registered, expired or submitted after the fork!");
 
         removed[_submissionID] = true;
     }
