@@ -68,7 +68,7 @@ contract ForkModule is IForkModule {
      *  @param _proofOfHumanityV1 The address of the PoH v1 contract.
      *  @param _proofOfHumanityV2 The address of the PoH v2 contract.
      */
-    function initialize(address _proofOfHumanityV1, address _proofOfHumanityV2) public payable initializer {
+    function initialize(address _proofOfHumanityV1, address _proofOfHumanityV2) public initializer {
         proofOfHumanityV1 = IProofOfHumanityOld(_proofOfHumanityV1);
         proofOfHumanityV2 = _proofOfHumanityV2;
 

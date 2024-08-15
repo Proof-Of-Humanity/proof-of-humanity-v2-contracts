@@ -62,7 +62,7 @@ contract AMBBridgeGateway is IBridgeGateway, IAMBReceiver {
     /** @dev Change the governor of the contract.
      *  @param _governor The address of the new governor.
      */
-    function changeGovernor(address _governor) external payable onlyGovernor {
+    function changeGovernor(address _governor) external onlyGovernor {
         governor = _governor;
     }
 }

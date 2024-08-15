@@ -456,7 +456,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         uint40 _failedRevocationCooldown,
         uint256[3] memory _multipliers,
         uint32 _requiredNumberOfVouches
-    ) public payable initializer {
+    ) public initializer {
         wNative = _wNative;
         governor = msg.sender;
         requestBaseDeposit = _requestBaseDeposit;
