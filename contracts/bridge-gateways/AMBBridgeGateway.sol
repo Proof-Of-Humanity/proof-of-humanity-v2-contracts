@@ -21,8 +21,14 @@ interface IAMBReceiver {
 }
 
 contract AMBBridgeGateway is IBridgeGateway, IAMBReceiver {
+
+    /// @dev The amb address on this chain
     IAMB public immutable amb;
+
+    /// @dev The CrosschainProofOfHumanity proxy's address on this chain
     address public immutable homeProxy;
+
+    /// @dev The address of the instance of this contract deployed in the sidechain
     address public foreignGateway;
 
     /// @dev The address that can make governance changes to the parameters of the contract.
@@ -36,22 +42,48 @@ contract AMBBridgeGateway is IBridgeGateway, IAMBReceiver {
         _;
     }
 
+    /** @dev Initializes this contract
+     *
+     *  @param _amb amb address on this chain.
+     *  @param _homeProxy CrosschainProofOfHumanity proxy's address.
+     */
     constructor(IAMB _amb, address _homeProxy) {
         amb = _amb;
         homeProxy = _homeProxy;
         governor = msg.sender;
     }
 
+    /** @dev Sets the foreign gateway (instance of this contract deployed on sidechain)
+     *  @dev Requirements:
+     *  - foreign gateway must not have been set before
+     *
+     *  @param _foreignGateway gateway's address.
+     */
     function setForeignGateway(address _foreignGateway) public onlyGovernor {
         require(foreignGateway == address(0x0), "set!");
         foreignGateway = _foreignGateway;
     }
 
+    /** @dev Sends message from CrosschainProofOfHumanity on this chain to foreign gateway
+     *  which will receive and redirect to CrosschainProofOfHumanity on side chain.
+     *  @dev Requirements:
+     *  - msg.sender must be homeProxy (CrosschainProofOfHumanity)
+     *
+     *  @param _data encoded message.
+     */
     function sendMessage(bytes memory _data) external override {
         require(msg.sender == homeProxy, "!homeProxy");
         amb.requireToPassMessage(foreignGateway, abi.encodeCall(this.receiveMessage, (_data)), amb.maxGasPerTx());
     }
 
+    /** @dev Receives message from foreign gateway for CrosschainProofOfHumanity.
+     *  @dev Requirements:
+     *  - msg.sender must be address of the amb on this chain
+     *  - amb.sender must be foreign gateway
+     *  - message call on homeProxy (CrosschainProofOfHumanity) must be succesful
+     *
+     *  @param _data encoded message.
+     */
     function receiveMessage(bytes memory _data) external override {
         require(msg.sender == address(amb), "!amb");
         require(amb.messageSender() == foreignGateway, "!foreignGateway");
