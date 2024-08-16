@@ -95,7 +95,7 @@ contract ForkModule is IForkModule {
      *  - Submission must be registered in v1.
      *
      *  @param _submissionID Address corresponding to the human.
-     *  @return expirationTime Expiration time of the revoked humanity. Used for.
+     *  @return expirationTime Expiration time of the revoked humanity.
      */
     function tryRemove(address _submissionID) external override onlyV2 returns (uint40 expirationTime) {
         require(!removed[_submissionID], "removed!");
