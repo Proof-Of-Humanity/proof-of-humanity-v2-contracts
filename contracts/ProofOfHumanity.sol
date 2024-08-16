@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -289,12 +289,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param requestId The ID of the request.
      *  @param name The name associated with the human.
      */
-    event ClaimRequest(
-        address indexed requester,
-        bytes20 indexed humanityId,
-        uint256 requestId,
-        string name
-    );
+    event ClaimRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string name);
 
     /** @dev Emitted when a renewal request is made.
      *  @param requester The address of the requester.
@@ -408,12 +403,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Party side
     );
 
-    /** @dev Emitted when fees and rewards are withdrawn for a challenge round. 
-     *  @param humanityId The humanity ID. 
-     *  @param requestId The ID of the request. 
-     *  @param challengeId The ID of the challenge. 
-     *  @param round The round of the challenge. 
-     *  @param beneficiary The address of the beneficiary. 
+    /** @dev Emitted when fees and rewards are withdrawn for a challenge round.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     *  @param round The round of the challenge.
+     *  @param beneficiary The address of the beneficiary.
      */
     event FeesAndRewardsWithdrawn(
         bytes20 humanityId,

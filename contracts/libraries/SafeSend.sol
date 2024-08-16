@@ -1,6 +1,6 @@
 /**
  * @authors: [@andreimvp]
- * @reviewers: []
+ * @reviewers: [@divyangchauhan]
  * @auditors: []
  * @bounties: []
  * SPDX-License-Identifier: MIT
