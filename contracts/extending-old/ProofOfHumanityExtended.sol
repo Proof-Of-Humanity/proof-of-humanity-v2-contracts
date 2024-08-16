@@ -1524,9 +1524,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function isClaimed(bytes20 _humanityId) external view override returns (bool) {
         Humanity storage humanity = humanityData[_humanityId];
         // Check this contract's state first and, if humanity not claimed here, check fork module.
-        return
-            (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
-            forkModule.isRegistered(address(_humanityId));
+        return (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime)
+            || forkModule.isRegistered(address(_humanityId));
     }
 
     /** @notice Check whether the account corresponds to a claimed humanity.
@@ -1536,9 +1535,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function isHuman(address _account) public view override returns (bool) {
         Humanity storage humanity = humanityData[accountHumanity[_account]];
         // Check this contract's state first and, if account not registered here, check fork module.
-        return
-            (humanity.owner == _account && block.timestamp < humanity.expirationTime) ||
-            forkModule.isRegistered(_account);
+        return (humanity.owner == _account && block.timestamp < humanity.expirationTime)
+            || forkModule.isRegistered(_account);
     }
 
     /** @notice Get the owner of a humanity.
