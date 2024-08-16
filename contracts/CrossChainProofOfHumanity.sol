@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*]
+ *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*, @divyangchauhan]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -47,7 +47,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     /// @dev Cooldown a humanity has to wait for transferring again after a past received transfer.
     /// @dev Used to avoid exploiting transfer functionality to evade revocation requests.
     uint256 public transferCooldown;
-    
+
     /// @dev Gap for possible future versions storage layout changes.
     uint256[50] internal __gap;
 
@@ -384,10 +384,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bytes20 humanityId = accountHumanity[_account];
         CrossChainHumanity memory humanity = humanityData[humanityId];
 
-        return !humanity.isHomeChain &&
-                humanityId != bytes20(0x0) &&
-                humanity.owner == _account &&
-                humanity.expirationTime > block.timestamp;
+        return
+            !humanity.isHomeChain &&
+            humanityId != bytes20(0x0) &&
+            humanity.owner == _account &&
+            humanity.expirationTime > block.timestamp;
     }
 
     /** @notice Get the owner of a humanity. Returns null address if not claimed
