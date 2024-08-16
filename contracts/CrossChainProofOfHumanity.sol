@@ -384,11 +384,10 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         bytes20 humanityId = accountHumanity[_account];
         CrossChainHumanity memory humanity = humanityData[humanityId];
 
-        return
-            !humanity.isHomeChain &&
-            humanityId != bytes20(0x0) &&
-            humanity.owner == _account &&
-            humanity.expirationTime > block.timestamp;
+        return !humanity.isHomeChain
+            && humanityId != bytes20(0x0)
+            && humanity.owner == _account
+            && humanity.expirationTime > block.timestamp;
     }
 
     /** @notice Get the owner of a humanity. Returns null address if not claimed
