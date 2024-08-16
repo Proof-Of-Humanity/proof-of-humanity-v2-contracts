@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -295,12 +295,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param requestId The ID of the request.
      *  @param name The name associated with the human.
      */
-    event ClaimRequest(
-        address indexed requester,
-        bytes20 indexed humanityId,
-        uint256 requestId,
-        string name
-    );
+    event ClaimRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string name);
 
     /** @dev Emitted when a renewal request is made.
      *  @param requester The address of the requester.
@@ -363,15 +358,15 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 disputeId
     );
 
-    /** @dev Emitted when humanity is succesfully claimed.
+    /** @dev Emitted when humanity is successfully claimed.
      *  @param humanityId The humanity ID.
-     *  @param requestId The ID of the succesfull request.
+     *  @param requestId The ID of the successfull request.
      */
     event HumanityClaimed(bytes20 humanityId, uint256 requestId);
 
-    /** @dev Emitted when humanity is succesfully revoked.
+    /** @dev Emitted when humanity is successfully revoked.
      *  @param humanityId The humanity ID.
-     *  @param requestId The ID of the succesfull request.
+     *  @param requestId The ID of the successfull request.
      */
     event HumanityRevoked(bytes20 humanityId, uint256 requestId);
 
@@ -382,7 +377,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     event VouchesProcessed(bytes20 humanityId, uint256 requestId, uint256 endIndex);
 
-    /** @dev Emitted when the challenge period is restarted after an unsuccesful challenge.
+    /** @dev Emitted when the challenge period is restarted after an unsuccessful challenge.
      *  @param humanityId The humanity ID.
      *  @param requestId The ID of the request.
      *  @param challengeId The ID of the challenge.
@@ -414,12 +409,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Party side
     );
 
-    /** @dev Emitted when fees and rewards are withdrawn for a challenge round. 
-     *  @param humanityId The humanity ID. 
-     *  @param requestId The ID of the request. 
-     *  @param challengeId The ID of the challenge. 
-     *  @param round The round of the challenge. 
-     *  @param beneficiary The address of the beneficiary. 
+    /** @dev Emitted when fees and rewards are withdrawn for a challenge round.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     *  @param round The round of the challenge.
+     *  @param beneficiary The address of the beneficiary.
      */
     event FeesAndRewardsWithdrawn(
         bytes20 humanityId,
@@ -768,7 +763,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
         Humanity storage humanity = humanityData[humanityId];
 
-        if (humanity.owner == msg.sender) 
+        if (humanity.owner == msg.sender)
             require(humanity.expirationTime.subCap40(renewalPeriodDuration) < block.timestamp);
         else {
             humanityId = bytes20(msg.sender);
