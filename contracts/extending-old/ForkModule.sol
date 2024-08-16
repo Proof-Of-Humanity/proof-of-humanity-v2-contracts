@@ -1,5 +1,5 @@
 /** @authors: []
- *  @reviewers: [@Harman-singh-waraich]
+ *  @reviewers: [@divyangchauhan, @Harman-singh-waraich]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -47,7 +47,6 @@ contract ForkModule is IForkModule {
 
     /// @dev The removed flag used to overwrite the v1 submission status.
     mapping(address => bool) public removed;
-
 
     /* Modifiers */
 
@@ -104,7 +103,7 @@ contract ForkModule is IForkModule {
 
         expirationTime = uint40(submissionTime).addCap40(submissionDuration);
 
-        require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "registered!");
+        require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "Not registered, expired or submitted after the fork!");
 
         removed[_submissionID] = true;
     }

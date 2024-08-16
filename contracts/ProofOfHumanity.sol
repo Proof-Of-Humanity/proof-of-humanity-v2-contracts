@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @Harman-singh-waraich]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -21,6 +21,9 @@ import {CappedMath} from "./libraries/CappedMath.sol";
  *  In order to challenge a registration request the challenger must provide one of the four reasons.
  *  New registration requests firstly should gain sufficient amount of vouches from other registered users and only after that they can be accepted or challenged.
  *  The users who vouched for a human that lost the challenge with the reason Duplicate or DoesNotExist would be penalized with optional fine or ban period.
+ *  @notice An impersonation attack can be performed by registering on the side-chain's contract instance with the same humanityId already registered on the 
+ *  home chain. The behaviour of this edgecase should be to keep the current owner of the identity on this chain as the owner. If this is an impersonation, 
+ *  it's up to the impersonated to ask removal of the impersonator humanity so he can get it back.
  *  @notice This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
  */
@@ -289,12 +292,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param requestId The ID of the request.
      *  @param name The name associated with the human.
      */
-    event ClaimRequest(
-        address indexed requester,
-        bytes20 indexed humanityId,
-        uint256 requestId,
-        string name
-    );
+    event ClaimRequest(address indexed requester, bytes20 indexed humanityId, uint256 requestId, string name);
 
     /** @dev Emitted when a renewal request is made.
      *  @param requester The address of the requester.
@@ -408,12 +406,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Party side
     );
 
-    /** @dev Emitted when fees and rewards are withdrawn for a challenge round. 
-     *  @param humanityId The humanity ID. 
-     *  @param requestId The ID of the request. 
-     *  @param challengeId The ID of the challenge. 
-     *  @param round The round of the challenge. 
-     *  @param beneficiary The address of the beneficiary. 
+    /** @dev Emitted when fees and rewards are withdrawn for a challenge round.
+     *  @param humanityId The humanity ID.
+     *  @param requestId The ID of the request.
+     *  @param challengeId The ID of the challenge.
+     *  @param round The round of the challenge.
+     *  @param beneficiary The address of the beneficiary.
      */
     event FeesAndRewardsWithdrawn(
         bytes20 humanityId,
