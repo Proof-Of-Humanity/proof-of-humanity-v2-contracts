@@ -949,67 +949,67 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         );
         require(request.challenges[0].rounds[0].sideFunded == Party.Requester);
 
-        address voucherAccount;
-        Humanity storage voucherHumanity;
-        uint256 requiredVouches = requiredNumberOfVouches;
-        uint256 nbSignatureVouches = _signatureVouches.length;
-        uint256 i;
-        bool isValid;
+        // Allocate a fixed size array to store the maximum number of possible valid vouches
+        address[] memory validVouches = new address[](_vouches.length + _signatureVouches.length);
+        uint256 validVouchesAmount; // tracks the number of initialized items in validVouches[]
 
-        // Iterate over both vouches arrays until accumulating the required number of valid vouches
-        // If both arrays ends' have been reached and not enough valid vouches have been given, it will revert on overflow
-        while (request.vouches.length < requiredVouches) {
-            if (i < nbSignatureVouches) {
-                SignatureVouch memory signature = _signatureVouches[i];
+        // If either of the arrays boundary is reached, it will revert on overflow
+        for(uint256 i = 0; i < _signatureVouches.length; i++) {
+            SignatureVouch memory signature = _signatureVouches[i];
 
-                // Used OZ check https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/ECDSA.sol#L125-L136
-                require(signature.s <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0);
+            // Used OZ check https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/cryptography/ECDSA.sol#L125-L136
+            require(signature.s <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0);
 
-                voucherAccount = ecrecover(
-                    keccak256(
-                        abi.encodePacked(
-                            "\x19\x01",
-                            DOMAIN_SEPARATOR,
-                            keccak256(
-                                abi.encode(IS_HUMAN_VOUCHER_TYPEHASH, _claimer, humanityId, signature.expirationTime)
-                            )
+            address voucher = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR,
+                        keccak256(
+                            abi.encode(IS_HUMAN_VOUCHER_TYPEHASH, _claimer, humanityId, signature.expirationTime)
                         )
-                    ),
-                    signature.v,
-                    signature.r,
-                    signature.s
-                );
+                    )
+                ),
+                signature.v,
+                signature.r,
+                signature.s
+            );
 
-                isValid = block.timestamp < signature.expirationTime;
-            } else {
-                // Overflows if the end of _vouches has been reached and not enough valid vouches were gathered.
-                voucherAccount = _vouches[i - nbSignatureVouches];
-
-                isValid = vouches[voucherAccount][_claimer][humanityId];
-            }
-
-            if (isValid) {
-                // If voucherAccount is null, voucherHumanityId will be null too which cannot be claimed (so it will fail the conditions)
-                bytes20 voucherHumanityId = humanityOf(voucherAccount);
-                voucherHumanity = humanityData[voucherHumanityId];
-                if (
-                    ((voucherHumanity.owner == voucherAccount && block.timestamp < voucherHumanity.expirationTime) ||
-                        forkModule.isRegistered(voucherAccount)) &&
-                    !voucherHumanity.vouching &&
-                    voucherAccount != _claimer
-                ) {
-                    request.vouches.push(voucherHumanityId);
-                    voucherHumanity.vouching = true;
-
-                    // Emit event to signal the processing of the signature vouch (and the on-chain as well)
-                    emit VouchRegistered(voucherHumanityId, humanityId, requestId);
-                }
-            }
-
-            unchecked {
-                i++;
+            if (block.timestamp < signature.expirationTime) {
+                validVouches[validVouchesAmount++] = voucher;
             }
         }
+
+        for (uint256 i = 0; i < _vouches.length; i++) {
+            if (vouches[_vouches[i]][_claimer][humanityId]) {
+                validVouches[validVouchesAmount++] = _vouches[i];
+            }
+        }
+
+        // Don't iterate beyond the initialized vouches in the fixed-size validVouches array
+        for (uint256 i = 0; i < validVouchesAmount; i++) {
+            address voucher = validVouches[i];
+
+            // If voucher is null, voucherHumanityId will be null too which cannot be claimed (so it will fail the conditions)
+            bytes20 voucherHumanityId = humanityOf(voucher);
+            Humanity storage voucherHumanity = humanityData[voucherHumanityId];
+            if (
+                ((voucherHumanity.owner == voucher && 
+                    block.timestamp < voucherHumanity.expirationTime) ||
+                        forkModule.isRegistered(voucher)) &&
+                    !voucherHumanity.vouching &&
+                    voucher != _claimer
+            ) {
+                request.vouches.push(voucherHumanityId);
+                voucherHumanity.vouching = true;
+
+                // Emit event to signal the processing of the signature vouch (and the on-chain as well)
+                emit VouchRegistered(voucherHumanityId, humanityId, requestId);
+            }
+        }
+
+        // Don't advance if the required number of vouches is not met.
+        if (validVouchesAmount < requiredNumberOfVouches) return;
 
         humanity.nbPendingRequests++;
         request.status = Status.Resolving;
