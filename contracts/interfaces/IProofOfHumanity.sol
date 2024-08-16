@@ -14,6 +14,13 @@ interface IProofOfHumanity {
 
     /* Views */
 
+    function ccIsHumanityGranteable(
+        bytes20 _humanityId,
+        address _owner
+    ) external view returns (bool success);
+
+    function ccIsHumanityDischargeable(address _owner) external view returns (bytes20 humanityId, uint40 expirationTime);
+
     function isClaimed(bytes20 _humanityId) external view returns (bool);
 
     function isHuman(address _address) external view returns (bool);

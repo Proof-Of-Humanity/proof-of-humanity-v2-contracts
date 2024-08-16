@@ -96,7 +96,7 @@ contract ForkModule is IForkModule {
      *  @param _submissionID Address corresponding to the human.
      *  @return expirationTime Expiration time of the revoked humanity.
      */
-    function tryRemove(address _submissionID) external override onlyV2 returns (uint40 expirationTime) {
+    function tryRemove(address _submissionID) external view override onlyV2 returns (uint40 expirationTime) {
         require(!removed[_submissionID], "removed!");
 
         (, uint64 submissionTime, , bool registered, , ) = proofOfHumanityV1.getSubmissionInfo(_submissionID);
@@ -105,7 +105,6 @@ contract ForkModule is IForkModule {
 
         require(registered && block.timestamp < expirationTime && submissionTime < forkTime, "Not registered, expired or submitted after the fork!");
 
-        removed[_submissionID] = true;
     }
 
     /// ====== VIEWS ====== ///

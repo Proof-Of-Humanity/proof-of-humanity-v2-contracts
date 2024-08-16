@@ -246,11 +246,21 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
         // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
-        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccDischargeHumanity(msg.sender);
+        (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccIsHumanityDischargeable(msg.sender);
+
+        IBridgeGateway(_bridgeGateway).sendMessage(
+            abi.encodeWithSelector(
+                ICrossChainProofOfHumanity.checkCCTransferCondition.selector,
+                msg.sender,
+                humanityId
+            )
+        );
 
         CrossChainHumanity storage humanity = humanityData[humanityId];
 
         require(block.timestamp > humanity.lastTransferTime + transferCooldown, "Can't transfer yet");
+
+        proofOfHumanity.ccDischargeHumanity(msg.sender);
 
         // Save state to not require extra updates from receiving chain
         humanity.expirationTime = expirationTime;
@@ -286,6 +296,16 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     // ========== RECEIVES ==========
+
+    function checkCCTransferCondition(
+        address _owner,
+        bytes20 _humanityId
+    ) external view override allowedGateway(msg.sender) {
+        require(
+            proofOfHumanity.ccIsHumanityGranteable(_humanityId, _owner),
+            "Transfer blocked. Possible impersonation attack!"
+        );
+    }
 
     /** @notice Receives the humanity from the foreign proxy
      *  @dev Can only be called by a trusted gateway
@@ -366,7 +386,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
      *  @param _humanityId The id of the humanity to check
      *  @return Whether humanity is claimed
      */
-    function isClaimed(bytes20 _humanityId) external view returns (bool) {
+    function isClaimed(bytes20 _humanityId) public view returns (bool) {
         if (proofOfHumanity.isClaimed(_humanityId)) return true;
 
         CrossChainHumanity memory humanity = humanityData[_humanityId];

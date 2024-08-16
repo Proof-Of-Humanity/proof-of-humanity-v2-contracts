@@ -10,4 +10,6 @@ interface ICrossChainProofOfHumanity {
         uint40 _expirationTime,
         bytes32 _transferHash
     ) external;
+
+    function checkCCTransferCondition(address _owner, bytes20 _humanityId) external;
 }

@@ -487,6 +487,23 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GOVERNANCE ====== ///
 
+    function ccIsHumanityGranteable(
+        bytes20 _humanityId,
+        address _account
+    ) external view onlyCrossChain returns (bool success) {
+        Humanity storage humanity = humanityData[_humanityId];
+
+        // If humanity is claimed, don't overwrite.
+        if (
+            (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) ||
+            // If not claimed in this contract, check in fork module too.
+            forkModule.isRegistered(_account)
+        ) return false;
+
+        // Must not be in the process of claiming a humanity.
+        require(humanityData[accountHumanity[_account]].requestCount[_account] == 0);
+    }
+
     /** @dev Grant humanity via cross-chain instance.
      *  @dev Returns whether humanity was not claimed (thus granted successfully) for better interaction with CrossChainPoH instance.
      *
@@ -526,6 +543,27 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         return true;
     }
 
+    function ccIsHumanityDischargeable(
+        address _account
+    ) external view onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
+        humanityId = accountHumanity[_account];
+        Humanity storage humanity = humanityData[humanityId];
+        require(humanity.nbPendingRequests == 0);
+
+        if (humanity.owner == _account && block.timestamp < humanity.expirationTime) {
+            require(!humanity.vouching);
+
+            expirationTime = humanity.expirationTime;
+
+        } else {
+            // V1 profiles have default humanity.
+            humanityId = bytes20(_account);
+
+            // Should revert in case account is not registered.
+            expirationTime = forkModule.tryRemove(_account);
+        }
+    }
+
     /** @dev Directly remove a humanity via cross-chain instance when initiating a transfer.
      *  @dev Returns humanityId and expirationTime for better interaction with CrossChainPoH instance.
      *
@@ -559,7 +597,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             humanityId = bytes20(_account);
 
             // Should revert in case account is not registered.
-            expirationTime = forkModule.tryRemove(_account);
+            forkModule.remove(_account);
         }
 
         emit HumanityDischargedDirectly(humanityId);

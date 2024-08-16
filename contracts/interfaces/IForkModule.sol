@@ -4,7 +4,7 @@ pragma solidity 0.8.20;
 interface IForkModule {
     function remove(address _submissionID) external;
 
-    function tryRemove(address _submissionID) external returns (uint40);
+    function tryRemove(address _submissionID) external view returns (uint40);
 
     function isRegistered(address _submissionID) external view returns (bool);
 

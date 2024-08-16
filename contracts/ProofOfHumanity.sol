@@ -484,6 +484,20 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
 
     /// ====== GOVERNANCE ====== ///
 
+    function ccIsHumanityGranteable(
+        bytes20 _humanityId,
+        address _account
+    ) external view onlyCrossChain returns (bool success) {
+        Humanity storage humanity = humanityData[_humanityId];
+
+        // If humanity is claimed, don't overwrite.
+        if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) return false;
+
+        // Must not be in the process of claiming a humanity.
+        require(humanityData[accountHumanity[_account]].requestCount[_account] == 0);
+        return true;
+    }
+    
     /** @dev Grant humanity via cross-chain instance.
      *  @dev Returns whether humanity was not claimed (thus granted successfully) for better interaction with CrossChainPoH instance.
      *
@@ -517,6 +531,20 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         emit HumanityGrantedDirectly(_humanityId, _account, _expirationTime);
 
         return true;
+    }
+
+    function ccIsHumanityDischargeable(
+        address _account
+    ) external view onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
+        humanityId = accountHumanity[_account];
+        Humanity storage humanity = humanityData[humanityId];
+
+        expirationTime = humanity.expirationTime;
+
+        require(humanity.owner == _account);
+        require(block.timestamp < expirationTime);
+        require(humanity.nbPendingRequests == 0);
+        require(!humanity.vouching);
     }
 
     /** @dev Directly remove a humanity via cross-chain instance when initiating a transfer.
