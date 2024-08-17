@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich, @wadader, @fcanela]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich, @wadader, @fcanela, @ShubhamParkhi]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -22,7 +22,7 @@ import {CappedMath} from "./libraries/CappedMath.sol";
  *  New registration requests firstly should gain sufficient amount of vouches from other registered users and only after that they can be accepted or challenged.
  *  The users who vouched for a human that lost the challenge with the reason Duplicate or DoesNotExist would be penalized with optional fine or ban period.
  *  @notice An impersonation attack can be performed by registering on the side-chain's contract instance with the same humanityId already registered on the 
- *  home chain. The behaviour of this edgecase should be to keep the current owner of the identity on this chain as the owner. If this is an impersonation, 
+ *  home chain. The behaviour of this edge case should be to keep the current owner of the identity on this chain as the owner. If this is an impersonation, 
  *  it's up to the impersonated to ask removal of the impersonator humanity so he can get it back.
  *  @notice This contract trusts that the Arbitrator is honest and will not reenter or modify its costs during a call.
  *  The arbitrator must support appeal period.
@@ -193,7 +193,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     /// @dev Stores the arbitrator data of the contract. Updated each time the data is changed.
     ArbitratorData[] public arbitratorDataHistory;
 
-    /// @dev Maps the humanity id to the Humanity data. humanityData[humanityId].
+    /// @dev Maps the humanity ID to the Humanity data. humanityData[humanityId].
     mapping(bytes20 => Humanity) private humanityData;
 
     /// @dev Maps the address to the humanityId. It includes mapping to the humanity the owner or the account is in process of claiming. accountHumanity[address].
@@ -435,7 +435,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _clearingMetaEvidence The URI of the meta evidence object for clearing requests.
      *  @param _requestBaseDeposit The base deposit to make a request for a humanity.
      *  @param _humanityLifespan Time in seconds during which the claimed humanity won't automatically lose its status.
-     *  @param _renewalPeriodDuration Value that defines the duration of humanity's renewal period.
+     *  @param _renewalPeriodDuration Duration of the renewal period for a humanity.
      *  @param _challengePeriodDuration The time in seconds during which the request can be challenged.
      *  @param _failedRevocationCooldown The time in seconds after which a revocation request can be made after a previously failed one.
      *  @param _multipliers The array that contains fee stake multipliers to avoid 'stack too deep' error.
@@ -830,12 +830,12 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         _contribute(_humanityId, _requestId, 0, 0, Party.Requester, totalCost);
     }
 
-    /** @notice Vouch that the human corresponds to the humanity id.
+    /** @notice Vouch that the human corresponds to the humanity ID.
      *
      *  @dev Emits {VouchAdded} event.
      *
      *  @param _account The address of the human.
-     *  @param _humanityId The humanity id the vouch specifies human corresponds to.
+     *  @param _humanityId The humanity ID the vouch specifies human corresponds to.
      */
     function addVouch(address _account, bytes20 _humanityId) external {
         vouches[msg.sender][_account][_humanityId] = true;
@@ -847,7 +847,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @dev Emits {VouchRemoved} event.
      *
      *  @param _account The address of the human.
-     *  @param _humanityId The humanity id the vouch specifies human corresponds to.
+     *  @param _humanityId The humanity ID the vouch specifies human corresponds to.
      */
     function removeVouch(address _account, bytes20 _humanityId) external {
         vouches[msg.sender][_account][_humanityId] = false;
@@ -1593,7 +1593,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Get the information of a particular challenge of the request.
-     *  @param _humanityId The queried humanity Id.
+     *  @param _humanityId The queried humanity ID.
      *  @param _requestId The request to query.
      *  @param _challengeId The challenge to query.
      *  @return lastRoundId Id of last round.
@@ -1611,7 +1611,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Get the information of a round of a request.
-     *  @param _humanityId The queried humanity Id.
+     *  @param _humanityId The queried humanity ID.
      *  @param _requestId The request to query.
      *  @param _challengeId The challenge to query.
      *  @param _round The round to query.
@@ -1644,7 +1644,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     }
 
     /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
-     *  @param _humanityId The humanity id.
+     *  @param _humanityId The humanity ID.
      *  @param _requestId The request to query.
      *  @param _challengeId the challenge to query.
      *  @param _round The round to query.
