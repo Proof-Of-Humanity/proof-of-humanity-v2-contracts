@@ -57,7 +57,7 @@ contract ForkModule is IForkModule {
     }
 
     modifier onlyV2() {
-        require(msg.sender == address(proofOfHumanityV2), "!poh");
+        require(msg.sender == proofOfHumanityV2, "!poh");
         _;
     }
 
