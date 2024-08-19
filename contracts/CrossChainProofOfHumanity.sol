@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*, @divyangchauhan, @Harman-singh-waraich, @wadader, @fcanela]
+ *  @reviewers: [@unknownunknown1*, @fnanni-0*, @hrishibhat*, @divyangchauhan, @Harman-singh-waraich, @wadader, @fcanela, @ShubhamParkhi]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -241,11 +241,11 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         emit UpdateInitiated(_humanityId, owner, expirationTime, humanityClaimed, _bridgeGateway);
     }
 
-    /** @notice Execute transfering the humanity to the foreign chain
+    /** @notice Execute transferring the humanity to the foreign chain
      *  @param _bridgeGateway address of the bridge gateway to use
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {
-        // Function will require humanity to be claimed by sender, have no pending requests and human not vouching at the time
+        // Function will require humanity to be claimed by sender, have no pending requests and human not vouching for others at the time
         (bytes20 humanityId, uint40 expirationTime) = proofOfHumanity.ccDischargeHumanity(msg.sender);
 
         CrossChainHumanity storage humanity = humanityData[humanityId];
@@ -319,7 +319,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         emit UpdateReceived(_humanityId, _owner, _expirationTime, _isActive);
     }
 
-    /** @notice Receives the transfered humanity from the foreign proxy
+    /** @notice Receives the transferred humanity from the foreign proxy
      *  @dev Can only be called by a trusted gateway
      *  @param _owner Address of the human corresponding to the humanity
      *  @param _humanityId ID of the humanity
@@ -407,7 +407,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
 
     /** @notice Get the humanity corresponding to an address. Returns null humanity if it does not correspond to a humanity
      *  @notice First check state in main contract and, if no humanity returned, derive from state of this contract
-     *  @param _account The address of the account to get the correspding humanity of
+     *  @param _account The address of the account to get the corresponding humanity of
      *  @return humanityId The humanity corresponding to the account
      */
     function humanityOf(address _account) external view returns (bytes20 humanityId) {

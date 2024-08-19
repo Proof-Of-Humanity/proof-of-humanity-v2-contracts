@@ -1,6 +1,6 @@
 /** SPDX-License-Identifier: MIT
  *  @authors: [@unknownunknown1, @nix1g]
- *  @reviewers: [@fnanni-0, @mtsalenc*, @nix1g, @clesaege*, @hbarcelos*, @ferittuncer*, @shalzz, @MerlinEgalite, @divyangchauhan]
+ *  @reviewers: [@fnanni-0, @mtsalenc*, @nix1g, @clesaege*, @hbarcelos*, @ferittuncer*, @shalzz, @MerlinEgalite, @divyangchauhan, @ShubhamParkhi]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -1183,7 +1183,7 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
                         request.resolved = true;
                     }
                 }
-                // Challenger won or it’s a tie.
+                // Challenger won or it's a tie.
             } else {
                 request.requesterLost = true;
                 // Update the status of the submission if there is no more disputes left.

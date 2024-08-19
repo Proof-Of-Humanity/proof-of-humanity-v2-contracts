@@ -1,5 +1,5 @@
 /** @authors: [@andreimvp]
- *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich]
+ *  @reviewers: [@unknownunknown1, @shotaronowhere*, @gratestas, Param, @fnanni-0*, @divyangchauhan, @Harman-singh-waraich, @ShubhamParkhi]
  *  @auditors: []
  *  @bounties: []
  *  @deployments: []
@@ -1367,7 +1367,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             resultRuling = Party.Requester;
         else if (round.sideFunded == Party.Challenger) resultRuling = Party.Challenger;
 
-        // Store the rulings of each dispute for correct distribution of rewards.
+        // Store the ruling of each dispute for correct distribution of rewards.
         challenge.ruling = resultRuling;
 
         emit Ruling(IArbitrator(msg.sender), _disputeId, uint256(resultRuling));
@@ -1408,7 +1408,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                         return;
                     }
                 }
-                // Challenger won or it’s a tie.
+                // Challenger won or it's a tie.
             } else if (resultRuling == Party.Challenger) request.ultimateChallenger = challenge.challenger;
         }
 
@@ -1610,7 +1610,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
     /** @notice Get information of a request of a humanity.
      *  @param _humanityId The address of the humanity.
-     *  @param _requestId The request
+     *  @param _requestId The request ID
      */
     function getRequestInfo(
         bytes20 _humanityId,
