@@ -242,6 +242,9 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
     }
 
     /** @notice Execute transferring the humanity to the foreign chain
+     *  @notice If this humanity was also taken on the foreign chain (impersonation threat), this profile will be lost. 
+     *  In such a case the user should be adviced to request revoking the impersonator providing the necessary evidence 
+     *  for showing that her profile is the impersonated one.
      *  @param _bridgeGateway address of the bridge gateway to use
      */
     function transferHumanity(address _bridgeGateway) external allowedGateway(_bridgeGateway) {

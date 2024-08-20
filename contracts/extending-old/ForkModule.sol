@@ -11,6 +11,7 @@ pragma solidity 0.8.20;
 import {CappedMath} from "../libraries/CappedMath.sol";
 import {IForkModule} from "../interfaces/IForkModule.sol";
 import {IProofOfHumanityOld} from "../interfaces/IProofOfHumanityOld.sol";
+import {IProofOfHumanity} from "../interfaces/IProofOfHumanity.sol";
 
 /** @title ForkModule
  *
@@ -36,8 +37,8 @@ contract ForkModule is IForkModule {
     /// @dev PoH v1 contract instance.
     IProofOfHumanityOld public proofOfHumanityV1;
 
-    /// @dev Address of PoH v2 contract instance.
-    address public proofOfHumanityV2;
+    /// @dev PoH v2 contract instance.
+    IProofOfHumanity public proofOfHumanityV2;
 
     /// @dev The submissionDuration fetched from PoH v1 at the initialization of this contract.
     uint40 public submissionDuration;
@@ -69,7 +70,7 @@ contract ForkModule is IForkModule {
      */
     function initialize(address _proofOfHumanityV1, address _proofOfHumanityV2) public initializer {
         proofOfHumanityV1 = IProofOfHumanityOld(_proofOfHumanityV1);
-        proofOfHumanityV2 = _proofOfHumanityV2;
+        proofOfHumanityV2 = IProofOfHumanity(_proofOfHumanityV2);
 
         forkTime = uint40(block.timestamp);
 

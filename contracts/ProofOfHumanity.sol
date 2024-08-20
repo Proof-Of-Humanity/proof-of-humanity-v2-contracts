@@ -1000,7 +1000,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      *  @param _humanityId Id of the humanity the request to challenge corresponds to.
      *  @param _requestId Id of the request to challenge.
      *  @param _reason Reason to challenge the request.
-     *  @param _evidence Link to evidence using its URI. Ignored if not provided.
+     *  @param _evidence Link to evidence using its URI. Can be the empty string.
      */
     function challengeRequest(
         bytes20 _humanityId,
