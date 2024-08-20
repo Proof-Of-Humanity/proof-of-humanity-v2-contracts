@@ -37,7 +37,7 @@ contract ForkModule is IForkModule {
     /// @dev PoH v1 contract instance.
     IProofOfHumanityOld public proofOfHumanityV1;
 
-    /// @dev Address of PoH v2 contract instance.
+    /// @dev PoH v2 contract instance.
     IProofOfHumanity public proofOfHumanityV2;
 
     /// @dev The submissionDuration fetched from PoH v1 at the initialization of this contract.
