@@ -5,26 +5,18 @@ import {
   CrossChainProofOfHumanity,
   CrossChainProofOfHumanity__factory,
 } from "../../typechain-types";
-import { Addresses, Chain, supported } from "../consts";
+import { getRouteToConsts, supported } from "../consts";
 
 async function main() {
   const [deployer] = await ethers.getSigners();
-  const chainId = +(await getChainId()) as Chain;
+  const chainId = +(await getChainId());
+  const module = await getRouteToConsts(chainId);
 
-  const FOREIGN_CC_PROXY = 
-    (chainId === Chain.CHIADO) ? 
-      Addresses[Chain.SEPOLIA].CROSS_CHAIN : 
-    (chainId === Chain.SEPOLIA) ? 
-      Addresses[Chain.CHIADO].CROSS_CHAIN :
-    (chainId === Chain.GNOSIS) ? 
-      Addresses[Chain.MAINNET].CROSS_CHAIN :
-    //(chainId === Chain.ETH) ? 
-      Addresses[Chain.GNOSIS].CROSS_CHAIN;
-  
-  var messengerAddress = Addresses[chainId].MESSENGER; 
+  const FOREIGN_CC_PROXY = module.getForeignCCProxy(chainId);
+  var messengerAddress = module.FixedAddresses[chainId].MESSENGER; 
   // Address of the AMB mediator (ETH-GNO only) specified in Addresses[chainId].MESSENGER
   // If no address is found the centralized AMB (Mock) will be deployed and its address used for deploying the AMB bridge afterwards.
-  if (Addresses[chainId].MESSENGER === "0x") {
+  if (module.FixedAddresses[chainId].MESSENGER === "0x") {
     const amb = await new CentralizedAMB__factory(deployer).deploy();
     messengerAddress = await amb.getAddress();
     
@@ -37,7 +29,7 @@ async function main() {
 
   const bridgeGateway = await new AMBBridgeGateway__factory(deployer).deploy(
     messengerAddress,
-    Addresses[chainId].CROSS_CHAIN
+    module.Addresses[chainId].CROSS_CHAIN
   );
 
   console.log(`
@@ -48,7 +40,7 @@ async function main() {
   `);
 
   const crossChainPoH = new CrossChainProofOfHumanity__factory(deployer).attach(
-    Addresses[chainId].CROSS_CHAIN
+    module.Addresses[chainId].CROSS_CHAIN
   ) as CrossChainProofOfHumanity;
 
   await crossChainPoH.addBridgeGateway(await bridgeGateway.getAddress(), FOREIGN_CC_PROXY);

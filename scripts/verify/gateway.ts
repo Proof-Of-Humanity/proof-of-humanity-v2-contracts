@@ -1,15 +1,16 @@
 import { getChainId, run } from "hardhat";
-import { Addresses } from "../consts";
+import { getRouteToConsts } from "../consts";
 
 async function main() {
     const chainId = +(await getChainId());
+    const module = await getRouteToConsts(chainId);
 
     await run("verify:verify",
         {
-            address: Addresses[chainId].GATEWAY,
+            address: module.Addresses[chainId].GATEWAY,
             constructorArguments: [
-                Addresses[chainId].MESSENGER,
-                Addresses[chainId].CROSS_CHAIN
+                module.FixedAddresses[chainId].MESSENGER,
+                module.Addresses[chainId].CROSS_CHAIN
             ]
         }
     )
