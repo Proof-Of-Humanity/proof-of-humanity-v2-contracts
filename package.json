@@ -6,19 +6,31 @@
   "license": "MIT",
   "scripts": {
     "compile": "hardhat compile",
+
     "deploy-poh": "env-cmd cross-var hardhat run scripts/deploy/poh.ts --network $NETWORK",
     "deploy-extended": "env-cmd cross-var hardhat run scripts/deploy/extended.ts --network $NETWORK",
+    "deploy-fork-manually": "env-cmd cross-var hardhat run scripts/deploy/fork-manually.ts --network $NETWORK",
     "deploy-ccpoh": "env-cmd cross-var hardhat run scripts/deploy/ccpoh.ts --network $NETWORK",
     "deploy-gateway": "env-cmd cross-var hardhat run scripts/deploy/gateway.ts --network $NETWORK",
     "deploy-pohlegacy": "env-cmd cross-var hardhat run scripts/deploy/pohlegacy.ts --network $NETWORK",
+
     "play": "env-cmd cross-var hardhat run scripts/play.ts --network $NETWORK --show-stack-traces",
     "test": "hardhat test",
     "size": "hardhat size-contracts",
+
     "verify-poh": "hardhat run scripts/verify/poh.ts --network",
     "verify-ccpoh": "hardhat run scripts/verify/ccpoh.ts --network",
     "verify-gateway": "hardhat run scripts/verify/gateway.ts --network",
-    "verify-messenger": "hardhat run scripts/verify/messenger.ts --network"
+    "verify-messenger": "hardhat run scripts/verify/messenger.ts --network",
+
+    "deploy-production-pohs": "yarn deploy-extended mainnet && yarn deploy-poh gnosis",
+    "verify-production-pohs": "yarn verify-poh mainnet && yarn verify-poh gnosis",
+    "deploy-production-ccpohs": "yarn deploy-ccpoh mainnet && yarn deploy-ccpoh gnosis",
+    "verify-production-ccpohs": "yarn verify-ccpoh mainnet && yarn verify-ccpoh gnosis",
+    "deploy-production-gateways": "yarn deploy-gateway mainnet && yarn deploy-gateway gnosis",
+    "verify-production-gateways": "yarn verify-gateway mainnet && yarn verify-gateway gnosis"
   },
+  
   "devDependencies": {
     "@nomicfoundation/hardhat-ignition": "^0.15.5",
     "@nomicfoundation/hardhat-ignition-ethers": "^0.15.0",

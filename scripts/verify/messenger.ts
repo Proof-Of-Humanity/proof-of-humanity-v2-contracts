@@ -1,15 +1,16 @@
 import { getChainId, run } from "hardhat";
-import { Addresses } from "../consts";
+import { getRouteToConsts } from "../consts";
 
 // Shouldn't be used unless verifying MockAMB.
 // AMB mediators should provide the corresponding contract addresses
 
 async function main() {
     const chainId = +(await getChainId());
+    const module = await getRouteToConsts(chainId);
 
     await run("verify:verify",
         {
-            address: Addresses[chainId].MESSENGER
+            address: module.FixedAddresses[chainId].MESSENGER
         }
     )
 

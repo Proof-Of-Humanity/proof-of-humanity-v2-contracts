@@ -1,12 +1,14 @@
 import { getChainId, run } from "hardhat";
-import { Addresses } from "../consts";
+import { getRouteToConsts } from "../consts";
 
 
 async function main() {
     const chainId = +(await getChainId());
+    const module = await getRouteToConsts(chainId);
+
     await run("verify:verify",
         {
-            address: Addresses[chainId].POH
+            address: module.Addresses[chainId].POH
         }
     )
 

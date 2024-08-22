@@ -9,7 +9,7 @@ import {
   ProofOfHumanityExtended,
   ProofOfHumanityOld,
 } from "../typechain-types";
-import { Addresses, supported } from "./consts";
+import { Addresses, supported } from "./consts/consts-mainnets";
 
 async function main() {
   const [deployer] = await ethers.getSigners();

@@ -1,166 +1,27 @@
 import { formatEther } from "ethers";
 import { ethers } from "hardhat";
-import { WeiPerEther } from "ethers";
+import { isTestnet, SUPPORTED_NETWORKS } from "./consts/chains/chains";
 
-interface AddressSet {
-  POH: string;
-  POH_Implementation: string;
-  CROSS_CHAIN: string;
-  CC_Implementation: string;
-  MESSENGER: string;
-  GATEWAY: string;
-  LEGACY: string;
-  ARBITRATOR: string;
-  W_NATIVE: string;
-}
-
-export enum Chain {
-  GNOSIS = 100,
-  SEPOLIA = 11155111,
-  CHIADO = 10200,
-  MAINNET = 1,
-}
-
-export const Addresses: Record<number, AddressSet> = {
-  /* [Chain.GNOSIS]: { // OLD
-    POH: "0x4a594f0e73223c9a1CE0EfC16da92fFaA193a612",
-    POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d",
-    CROSS_CHAIN: "0x2C692919Da3B5471F9Ac6ae1C9D1EE54F8111f76",
-    CC_Implementation: "0x8363709987bbfbe241f9900eb449dcf517a80e74",
-    GATEWAY: "0x0142424ce8ce5E0999e3AB794A0b608511EF90dF", 
-    MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59",
-    LEGACY: "0x",
-    ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
-    W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
-    //PROXY_ADMIN: "",
-  }, */
-  /* [Chain.CHIADO]: { // OLD
-    POH: "0x2505C87AA36d9ed18514Ea7473Ac58aeDeb50849",
-    POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d",
-    CROSS_CHAIN: "0xBEd896A3DEa0E065F05Ba83Fa63322c7b9d67838",
-    CC_Implementation: "0x4a594f0e73223c9a1CE0EfC16da92fFaA193a612",
-    GATEWAY: "0x56350e6827263B8521192d4979D341dA7582A996",
-    MESSENGER: "0x8448E15d0e706C0298dECA99F0b4744030e59d7d",
-    LEGACY: "0x",
-    ARBITRATOR: "0x34E520dc1d2Db660113b64724e14CEdCD01Ee879",
-    W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7",
-    //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4",
-  }, */
-  /* [Chain.SEPOLIA]: { // OLD
-    POH: "0x29defF3DbEf6f79ef20d3fe4f9CFa0547acCeC0D",
-    POH_Implementation: "0xa59974FDc4728178D6CdEa305228D4482146f2FD",
-    CROSS_CHAIN: "0xd134748B972A320a73EfDe3AfF7a68718F6bA92c",
-    CC_Implementation: "0x1b1938b88f98aac56ae6d5beeb72abd6b858061c",
-    GATEWAY: "0x3787Aa5c2c03A1AC49555F84750e9503ba9A9043",
-    MESSENGER: "0xf2546D6648BD2af6a008A7e7C1542BB240329E11",
-    LEGACY: "0x08Db8FD559cb4e3668f994553871c7eBa7c3941a",
-    ARBITRATOR: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879",
-    W_NATIVE: "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
-  }, */
-  [Chain.CHIADO]: {
-    POH: "0x2F0f39c3CF5cffc0DeACEb69d3fD883734D67687",
-    POH_Implementation: "0x2cff45c3c5a5acba63a9ba4979de05c27dd2ac0d",
-    CROSS_CHAIN: "0x2f33051DF37Edf2286E3b2B3c7883E1A13D82071",
-    CC_Implementation: "0x4a594f0e73223c9a1ce0efc16da92ffaa193a612",
-    GATEWAY: "0x52C6FC2ffFa6F984A4663Fb8781d11640803720A",
-    MESSENGER: "0x8448E15d0e706C0298dECA99F0b4744030e59d7d",
-    LEGACY: "0x",
-    ARBITRATOR: "0x34E520dc1d2Db660113b64724e14CEdCD01Ee879",
-    W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7",
-    //PROXY_ADMIN: "",
-  },
-  [Chain.SEPOLIA]: {
-    POH: "0x0D4674De96459e00A101656b799ba016fBc45dC1",
-    POH_Implementation: "0xF2D1294225ee75CBf10a9bd2e9Fc35ba55E4b782",
-    CROSS_CHAIN: "0xDb7070C1AE12f83E709FF22c4c51993a570FDF84",
-    CC_Implementation: "0x252f5A28d26b2EfC5E28dD74E277B8f2dE7c1716",
-    GATEWAY: "0xdD6c7e64D85D5aae6A09f8Ca3Bf0668B163Ac35F",
-    MESSENGER: "0xf2546D6648BD2af6a008A7e7C1542BB240329E11",
-    LEGACY: "0xDC605c9094cDdF2af1704c25D7D69A97a08c7E30",
-    ARBITRATOR: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879",
-    W_NATIVE: "0x7b79995e5f793a07bc00c21412e50ecae098e7f9",
-    //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
-  },
-  [Chain.MAINNET]: {
-    POH: "0x6cbEdC1920090EA4F28A38C1CD61c8D37b2cc323",
-    POH_Implementation: "0xe6573F65efAbc351b69F9b73ed8e95772698938b",
-    CROSS_CHAIN: "0xD6F4E9d906CD7736a83e0AFa7EE9491658B4afA7",
-    CC_Implementation: "0x064B1132D9A9c43Df269FeAD9e80c195Fb9cd916",
-    GATEWAY: "0xb89D480e56Fe4915466eAbE64733adb6EfEfFc81",
-    MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e",
-    LEGACY: "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb", // PoH v1
-    ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena
-    W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", //WETH
-    //PROXY_ADMIN: "",
-    //FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
-  },
-  [Chain.GNOSIS]: {
-    POH: "0xe6573F65efAbc351b69F9b73ed8e95772698938b",
-    POH_Implementation: "0xf183073784092ce088f85Ec74d3841ACe8Ba0609", // Finally upgradedProxy reference to this implementation
-    //POH_Implementation: "0xD6F4E9d906CD7736a83e0AFa7EE9491658B4afA7", // New Verified implementation
-    //POH_Implementation: "0x2CfF45C3C5A5ACbA63a9BA4979de05c27dd2AC0d", // Verified implementation
-    //POH_Implementation: "0xF230c60C40D70a6AE8Bd20c92243A1Cf67c6C2A7", // Old implementation (Unverified) triggered by the contractFactory
-    CROSS_CHAIN: "0x6cbEdC1920090EA4F28A38C1CD61c8D37b2cc323",
-    CC_Implementation: "0xc664a8d43601109fc50f3bcf22f29e9119ab2f6d",
-    GATEWAY: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
-    MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59",
-    LEGACY: "0x",
-    ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
-    W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
-    //PROXY_ADMIN: "",
-  },
-};
-
-export const SUPPORTED_NETWORKS = [
-  Chain.SEPOLIA, 
-  Chain.GNOSIS, 
-  Chain.CHIADO, 
-  Chain.MAINNET
-];
-
-export const supported = async () => {
-  const [deployer] = await ethers.getSigners();
-
-  console.log(`
-    Wallet:  ${deployer.address}
-    Balance:   ${formatEther(await ethers.provider.getBalance(deployer))} ETH
-  `);
-
-  if (!SUPPORTED_NETWORKS.includes(+(await ethers.provider.getNetwork()).chainId.toString()))
-    throw new Error("Network not supported");
-};
-
-
-export const ARBITRATOR_EXTRA_DATA =
-  "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001";
 export const REGISTRATION_META_EVIDENCE = "/ipfs/QmadJhyPxhk5AYrdE6JMwhC7TpsA47YZwFP28VKkr1ffJF";
 export const CLEARING_META_EVIDENCE = "/ipfs/QmRqKmjVk1FcCRcTnuZmMG6SZEBB9LkUJb7Z4SVhJGHEfw";
+export const POH_V1_Address = "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb"; // PoH v1
+export const NULL_Address = "0x";
 
-// INIT PARAMS FOR LAUNCH
-export const REQUEST_BASE_DEPOSIT_MAINNET = 47500000000000000n; // 0.0475 ETHs
-export const REQUEST_BASE_DEPOSIT_GNOSIS = 110000000000000000000n; // 110 XDAI
+export const getRouteToConsts = async (chainId: number) => {
+    if (isTestnet(chainId))
+        return import("./consts/consts-testnets");
+    else return import("./consts/consts-mainnets");
+};
 
-export const HUMANITY_LIFESPAN = 31557600;
-export const RENEWAL_DURATION = 28512000; // One month before expiration
-export const CHALLENGE_DURATION = 302400;
-export const FAILED_REV_COOL_DOWN = 302400;
-export const SHARED_MULTIPLIER = 10000;
-export const WINNER_MULTIPLIER = 10000;
-export const LOSER_MULTIPLIER = 20000;
-export const NB_VOUCHES = 1;
-export const TRANSFER_COOLDOWN = 7;
-
-// INIT PARAMS FOR TEST
-export const REQUEST_BASE_DEPOSIT_SEPOLIA = WeiPerEther / 100n; // Used by pohlegacy to simulate pohv1 in Sepolia
-/* export const REQUEST_BASE_DEPOSIT_MAINNET = WeiPerEther / 100n;
-export const REQUEST_BASE_DEPOSIT_GNOSIS = WeiPerEther / 100n;
-
-export const HUMANITY_LIFESPAN = 864000;
-export const RENEWAL_DURATION = 863940;
-export const CHALLENGE_DURATION = 60;
-export const FAILED_REV_COOL_DOWN = 60;
-export const SHARED_MULTIPLIER = 10000;
-export const WINNER_MULTIPLIER = 10000;
-export const LOSER_MULTIPLIER = 20000;
-export const NB_VOUCHES = 1;
-export const TRANSFER_COOLDOWN = 7; */
+export const supported = async () => {
+    const [deployer] = await ethers.getSigners();
+  
+    console.log(`
+      Wallet:  ${deployer.address}
+      Balance:   ${formatEther(await ethers.provider.getBalance(deployer))} ETH
+    `);
+  
+    if (!SUPPORTED_NETWORKS.includes(+(await ethers.provider.getNetwork()).chainId.toString()))
+      throw new Error("Network not supported");
+  };
+  
