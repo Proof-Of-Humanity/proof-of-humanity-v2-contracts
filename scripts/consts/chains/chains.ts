@@ -14,3 +14,17 @@ export const isTestnet = (chainId: number) => {
         return false;
     else throw new Error("Network not supported");
 };
+
+export const getForeignChain = (chainId: number) => {
+    switch (chainId) {
+        case ChainTestnets.CHIADO:
+            return ChainTestnets.SEPOLIA;
+        case ChainTestnets.SEPOLIA:
+            return ChainTestnets.CHIADO;
+        case ChainMainnets.MAINNET:
+            return ChainMainnets.GNOSIS;
+        case ChainMainnets.GNOSIS:
+            return ChainMainnets.MAINNET;
+    }
+    throw new Error("Network not supported");
+}

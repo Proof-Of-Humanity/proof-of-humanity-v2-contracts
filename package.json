@@ -9,6 +9,7 @@
 
     "deploy-poh": "env-cmd cross-var hardhat run scripts/deploy/poh.ts --network $NETWORK",
     "deploy-extended": "env-cmd cross-var hardhat run scripts/deploy/extended.ts --network $NETWORK",
+    "deploy-fork-manually": "env-cmd cross-var hardhat run scripts/deploy/fork-manually.ts --network $NETWORK",
     "deploy-ccpoh": "env-cmd cross-var hardhat run scripts/deploy/ccpoh.ts --network $NETWORK",
     "deploy-gateway": "env-cmd cross-var hardhat run scripts/deploy/gateway.ts --network $NETWORK",
     "deploy-pohlegacy": "env-cmd cross-var hardhat run scripts/deploy/pohlegacy.ts --network $NETWORK",
