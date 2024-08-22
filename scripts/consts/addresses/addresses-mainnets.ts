@@ -1,36 +1,27 @@
 import { AddressSet } from "../interfaces/i-sets";
 import { Chain } from "../chains/chains-mainnets";
+import { NULL_Address, POH_V1_Address } from "../../consts";
 
 export const Addresses: Record<number, AddressSet> = {
   [Chain.MAINNET]: {
     // Complete while the corresponding scripts are executed
-    POH: "0x",
-    POH_Implementation: "0x",
-    CROSS_CHAIN: "0x",
-    CC_Implementation: "0x",
-    GATEWAY: "0x",
+    POH: NULL_Address,
+    POH_Implementation: NULL_Address,
+    CROSS_CHAIN: NULL_Address,
+    CC_Implementation: NULL_Address,
+    GATEWAY: NULL_Address,
+    LEGACY: POH_V1_Address,
     //PROXY_ADMIN: "",
-    //FORK_MODULE: "0x",
-
-    /* // The following are fixed
-    MESSENGER: FixedAddressesMainnets[Chain.MAINNET].MESSENGER,
-    LEGACY: POH_V1,
-    ARBITRATOR: FixedAddressesMainnets[Chain.MAINNET].ARBITRATOR,
-    W_NATIVE: FixedAddressesMainnets[Chain.MAINNET].W_NATIVE, */
+    //FORK_MODULE: NULL_Address,
   },
   [Chain.GNOSIS]: {
     // Complete while the corresponding scripts are executed
-    POH: "0x",
-    POH_Implementation: "0x",
-    CROSS_CHAIN: "0x",
-    CC_Implementation: "0x",
-    GATEWAY: "0x",
-    //PROXY_ADMIN: "",
-
-    /* // The following are fixed
-    MESSENGER: FixedAddressesMainnets[Chain.GNOSIS].MESSENGER,
-    LEGACY: "0x",
-    ARBITRATOR: FixedAddressesMainnets[Chain.GNOSIS].ARBITRATOR,
-    W_NATIVE: FixedAddressesMainnets[Chain.GNOSIS].W_NATIVE, */
+    POH: NULL_Address,
+    POH_Implementation: NULL_Address,
+    CROSS_CHAIN: NULL_Address,
+    CC_Implementation: NULL_Address,
+    GATEWAY: NULL_Address,
+    LEGACY: NULL_Address,
+    //PROXY_ADMIN: ""
   },
 };

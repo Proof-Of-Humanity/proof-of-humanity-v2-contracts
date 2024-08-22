@@ -35,13 +35,11 @@ export const getForeignCCProxy = (chainId: number): string => {
 
 export const FixedAddresses: Record<number, AddressSetFixed> = {
     [Chain.CHIADO]: {
-      LEGACY: "0x", 
       MESSENGER: "0x8448E15d0e706C0298dECA99F0b4744030e59d7d", // AMB on Chiado
       ARBITRATOR: "0x34E520dc1d2Db660113b64724e14CEdCD01Ee879", // Kleros court on Chiado
       W_NATIVE: "0x014A442480DbAD767b7615E55E271799889FA1a7", // Wrapped XDAI on Chiado
     },
     [Chain.SEPOLIA]: {
-      LEGACY: "0x",
       MESSENGER: "0xf2546D6648BD2af6a008A7e7C1542BB240329E11", // AMB on Sepolia
       ARBITRATOR: "0x90992fb4E15ce0C59aEFfb376460Fda4Ee19C879", // Kleros court on Sepolia
       W_NATIVE: "0x7b79995e5f793a07bc00c21412e50ecae098e7f9", // Wrapped Eth on Sepolia

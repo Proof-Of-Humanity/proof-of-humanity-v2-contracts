@@ -34,13 +34,11 @@ export const getForeignCCProxy = (chainId: number): string => {
 
 export const FixedAddresses: Record<number, AddressSetFixed> = {
     [Chain.MAINNET]: {
-      LEGACY: "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb", // PoH v1
       MESSENGER: "0x4C36d2919e407f0Cc2Ee3c993ccF8ac26d9CE64e", // AMB on Mainnet
       ARBITRATOR: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // Athena (Kleros court on mainnet)
       W_NATIVE: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", // Wrapped Eth (WETH)
     },
     [Chain.GNOSIS]: {
-      LEGACY: "0x",
       MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59", // AMB on Gnosis
       ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002", // Kleros court on Gnosis
       W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d", // Wrapped XDAI (WXDAI)

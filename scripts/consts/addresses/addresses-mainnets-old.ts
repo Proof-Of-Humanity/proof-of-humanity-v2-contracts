@@ -1,5 +1,6 @@
 import { AddressSet } from "../interfaces/i-sets";
 import { Chain } from "../chains/chains-mainnets";
+import { NULL_Address, POH_V1_Address } from "../../consts";
 
 export const Addresses: Record<number, AddressSet> = {
   [Chain.MAINNET]: {
@@ -9,14 +10,9 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0xD6F4E9d906CD7736a83e0AFa7EE9491658B4afA7",
     CC_Implementation: "0x064B1132D9A9c43Df269FeAD9e80c195Fb9cd916",
     GATEWAY: "0xb89D480e56Fe4915466eAbE64733adb6EfEfFc81",
+    LEGACY: POH_V1_Address,
     //PROXY_ADMIN: "",
-    //FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
-
-    /* // The following are fixed
-    MESSENGER: FixedAddressesMainnets[Chain.MAINNET].MESSENGER,
-    LEGACY: POH_V1,
-    ARBITRATOR: FixedAddressesMainnets[Chain.MAINNET].ARBITRATOR,
-    W_NATIVE: FixedAddressesMainnets[Chain.MAINNET].W_NATIVE, */
+    //FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555"
   },
   [Chain.GNOSIS]: {
     // Complete while the corresponding scripts are executed
@@ -26,12 +22,7 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0x6cbEdC1920090EA4F28A38C1CD61c8D37b2cc323",
     CC_Implementation: "0xc664a8d43601109fc50f3bcf22f29e9119ab2f6d",
     GATEWAY: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
-    //PROXY_ADMIN: "",
-
-    // The following are fixed
-    /* MESSENGER: FixedAddressesMainnets[Chain.GNOSIS].MESSENGER,
-    LEGACY: "0x",
-    ARBITRATOR: FixedAddressesMainnets[Chain.GNOSIS].ARBITRATOR,
-    W_NATIVE: FixedAddressesMainnets[Chain.GNOSIS].W_NATIVE, */
+    LEGACY: NULL_Address,
+    //PROXY_ADMIN: ""
   },
 };

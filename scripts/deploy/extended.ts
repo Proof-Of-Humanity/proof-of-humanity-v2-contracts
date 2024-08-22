@@ -33,7 +33,7 @@ async function main() {
 
   const ForkMod = await ethers.getContractFactory("ForkModule", deployer);
   const forkmod = (await upgrades.deployProxy(ForkMod, [
-    module.FixedAddresses[chainId].LEGACY,
+    module.Addresses[chainId].LEGACY,
     await poh.getAddress(),
   ] as Parameters<ForkModule["initialize"]>)) as any as ForkModule;
 

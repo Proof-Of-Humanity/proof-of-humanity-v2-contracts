@@ -1,5 +1,6 @@
 import { AddressSet } from "../interfaces/i-sets";
 import { Chain } from "../chains/chains-testnets";
+import { NULL_Address } from "../../consts";
 
 export const Addresses: Record<number, AddressSet> = {
   [Chain.CHIADO]: {
@@ -9,13 +10,8 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0x2f33051DF37Edf2286E3b2B3c7883E1A13D82071",
     CC_Implementation: "0x4a594f0e73223c9a1ce0efc16da92ffaa193a612",
     GATEWAY: "0x52C6FC2ffFa6F984A4663Fb8781d11640803720A",
-    //PROXY_ADMIN: "",
-
-    // The following are fixed
-    /* MESSENGER: FixedAddresses[Chain.CHIADO].MESSENGER,
-    LEGACY: "0x",
-    ARBITRATOR: FixedAddresses[Chain.CHIADO].ARBITRATOR, 
-    W_NATIVE: FixedAddresses[Chain.CHIADO].W_NATIVE, */
+    LEGACY: NULL_Address,
+    //PROXY_ADMIN: ""
   },
   [Chain.SEPOLIA]: {
     // Complete while the corresponding scripts are executed
@@ -24,12 +20,7 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0xDb7070C1AE12f83E709FF22c4c51993a570FDF84",
     CC_Implementation: "0x252f5A28d26b2EfC5E28dD74E277B8f2dE7c1716",
     GATEWAY: "0xdD6c7e64D85D5aae6A09f8Ca3Bf0668B163Ac35F",
-    //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
-    
-    // The following are fixed
-    /* MESSENGER: FixedAddresses[Chain.SEPOLIA].MESSENGER,
     LEGACY: "0xDC605c9094cDdF2af1704c25D7D69A97a08c7E30",
-    ARBITRATOR: FixedAddresses[Chain.SEPOLIA].ARBITRATOR,
-    W_NATIVE: FixedAddresses[Chain.SEPOLIA].W_NATIVE, */
+    //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
   }
 };

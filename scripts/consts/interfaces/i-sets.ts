@@ -4,10 +4,10 @@ export interface AddressSet {
     CROSS_CHAIN: string;
     CC_Implementation: string;
     GATEWAY: string;
+    LEGACY: string;
 }
 
 export interface AddressSetFixed {
-    LEGACY: string;
     MESSENGER: string;
     ARBITRATOR: string;
     W_NATIVE: string;

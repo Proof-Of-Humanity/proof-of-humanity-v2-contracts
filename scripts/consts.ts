@@ -11,6 +11,8 @@ const SUPPORTED_NETWORKS =
 
 export const REGISTRATION_META_EVIDENCE = "/ipfs/QmadJhyPxhk5AYrdE6JMwhC7TpsA47YZwFP28VKkr1ffJF";
 export const CLEARING_META_EVIDENCE = "/ipfs/QmRqKmjVk1FcCRcTnuZmMG6SZEBB9LkUJb7Z4SVhJGHEfw";
+export const POH_V1_Address = "0xC5E9dDebb09Cd64DfaCab4011A0D5cEDaf7c9BDb"; // PoH v1
+export const NULL_Address = "0x";
 
 export const getRouteToConsts = async (chainId: number) => {
     if (chainId == ChainTestnets.CHIADO || chainId == ChainTestnets.SEPOLIA)

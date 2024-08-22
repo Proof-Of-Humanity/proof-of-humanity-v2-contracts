@@ -1,5 +1,6 @@
 import { AddressSet } from "../interfaces/i-sets";
 import { Chain } from "../chains/chains-testnets";
+import { NULL_Address } from "../../consts";
 
 export const Addresses: Record<number, AddressSet> = {
   [Chain.CHIADO]: { // OLD
@@ -9,13 +10,8 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0xBEd896A3DEa0E065F05Ba83Fa63322c7b9d67838",
     CC_Implementation: "0x4a594f0e73223c9a1CE0EfC16da92fFaA193a612",
     GATEWAY: "0x56350e6827263B8521192d4979D341dA7582A996",
-    //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4",
-
-    // The following are fixed
-    /* MESSENGER: FixedAddresses[Chain.CHIADO].MESSENGER,
-    LEGACY: "0x",
-    ARBITRATOR: FixedAddresses[Chain.CHIADO].ARBITRATOR, 
-    W_NATIVE: FixedAddresses[Chain.CHIADO].W_NATIVE, */
+    LEGACY: NULL_Address,
+    //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4"
   },
   [Chain.SEPOLIA]: { // OLD
     // Complete while the corresponding scripts are executed
@@ -24,15 +20,10 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0xd134748B972A320a73EfDe3AfF7a68718F6bA92c",
     CC_Implementation: "0x1b1938b88f98aac56ae6d5beeb72abd6b858061c",
     GATEWAY: "0x3787Aa5c2c03A1AC49555F84750e9503ba9A9043",
-
-    // The following are fixed
-    /* MESSENGER: FixedAddresses[Chain.SEPOLIA].MESSENGER,
     LEGACY: "0x08Db8FD559cb4e3668f994553871c7eBa7c3941a",
-    ARBITRATOR: FixedAddresses[Chain.SEPOLIA].ARBITRATOR,
-    W_NATIVE: FixedAddresses[Chain.SEPOLIA].W_NATIVE, */
   },
   /* 
-  // Gnosis contracts were deployed for testnets in the first version of PoHv2 
+  // Contracts were deployed on Gnosis instead of Chiado in the first development version of PoHv2 
   [Chain.GNOSIS]: { 
     // Complete while the corresponding scripts are executed
     POH: "0x4a594f0e73223c9a1CE0EfC16da92fFaA193a612",
@@ -40,11 +31,7 @@ export const Addresses: Record<number, AddressSet> = {
     CROSS_CHAIN: "0x2C692919Da3B5471F9Ac6ae1C9D1EE54F8111f76",
     CC_Implementation: "0x8363709987bbfbe241f9900eb449dcf517a80e74",
     GATEWAY: "0x0142424ce8ce5E0999e3AB794A0b608511EF90dF", 
-
-    // The following are fixed
-    MESSENGER: "0x75Df5AF045d91108662D8080fD1FEFAd6aA0bb59",
-    LEGACY: "0x",
-    ARBITRATOR: "0x9C1dA9A04925bDfDedf0f6421bC7EEa8305F9002",
-    W_NATIVE: "0xe91d153e0b41518a2ce8dd3d7944fa863463a97d",
-  }, */
+    LEGACY: NULL_Address,
+  }
+  */
 };
