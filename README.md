@@ -27,7 +27,7 @@ yarn compile
 Other hardhat commands can be searched in the hardhat documentation.
 
 ### Deployed contracts on mainnets (Ethereum and Gnosis)
-###- ETHEREUM:
+### - ETHEREUM:
 
 Running script `deploy-extended mainnet`, the main PoH contracts (proxy and implementation) are deployed on Ethereum mainnet. 
 - POH (`ProofOfHumanityExtended.sol`): 0x87c5c294C9d0ACa6b9b2835A99FE0c9A444Aacc1
@@ -48,7 +48,7 @@ Others (no need to deploy manually):
 - PROXY_ADMIN: 0xf57B69f71DD7499Ca30242390E655e8A6a93b51b
 - PROXY_ADMIN_CC: 0xec729b0eCf7972236e8926DA4feAAF9BC8F55e65
 
-###- GNOSIS:
+### - GNOSIS:
 
 Running script `deploy-poh gnosis`, the main PoH contracts (proxy and implementation) are deployed on Gnosis. 
 - POH(`ProofOfHumanity.sol`): 0xECd1823b3087acEE3C77928b1959c08d31A8F20e
