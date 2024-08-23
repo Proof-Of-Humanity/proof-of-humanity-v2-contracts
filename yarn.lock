@@ -3070,7 +3070,7 @@ ethers@^5.7.0, ethers@^5.7.2, ethers@~5.7.0:
 
 ethers@^6.7.0, ethers@^6.7.1:
   version "6.13.2"
-  resolved "https://registry.npmjs.org/ethers/-/ethers-6.13.2.tgz"
+  resolved "https://registry.yarnpkg.com/ethers/-/ethers-6.13.2.tgz#4b67d4b49e69b59893931a032560999e5e4419fe"
   integrity sha512-9VkriTTed+/27BGuY1s0hf441kqwHJ1wtN2edksEtiRvXx+soxRX3iSXTfFqq2+YwrOqbDoTHjIhQnjJRlzKmg==
   dependencies:
     "@adraffy/ens-normalize" "1.10.1"
