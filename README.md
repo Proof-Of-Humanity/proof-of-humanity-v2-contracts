@@ -26,7 +26,8 @@ yarn compile
 
 Other hardhat commands can be searched in the hardhat documentation.
 
-### Deployed contracts on mainnets (Ethereum and Gnosis)
+
+# Deployed contracts on mainnets (Ethereum and Gnosis) and guidance
 ### - ETHEREUM:
 
 Running script `deploy-extended mainnet`, the main PoH contracts (proxy and implementation) are deployed on Ethereum mainnet. 
