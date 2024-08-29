@@ -850,6 +850,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function fundRequest(bytes20 _humanityId, uint256 _requestId) external payable {
         Request storage request = humanityData[_humanityId].requests[_requestId];
         require(request.status == Status.Vouching);
+        require(request.challenges[0].rounds[0].sideFunded == Party.None);
 
         ArbitratorData memory arbitratorData = arbitratorDataHistory[request.arbitratorDataId];
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
