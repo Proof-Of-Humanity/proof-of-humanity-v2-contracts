@@ -1,8 +1,8 @@
 export enum Status {
-  None, // The submission doesn't have a pending status.
-  Vouching, // The submission is in the state where it can be vouched for and crowdfunded.
-  PendingRegistration, // The submission is in the state where it can be challenged. Or accepted to the list, if there are no challenges within the time limit.
-  PendingRemoval, // The submission is in the state where it can be challenged. Or removed from the list, if there are no challenges within the time limit.
+  Vouching, // Request requires vouches / funding to advance to the next state. Should not be in this state for revocation requests.
+  Resolving, // Request is resolving and can be challenged within the time limit.
+  Disputed, // Request has been challenged.
+  Resolved // Request has been resolved.
 }
 
 export enum Party {
@@ -13,8 +13,8 @@ export enum Party {
 
 export enum Reason {
   None, // No reason specified. This option should be used to challenge removal requests.
-  IncorrectSubmission, // The submission does not comply with the submission rules.
-  Deceased, // The submitter has existed but does not exist anymore.
-  Duplicate, // The submitter is already registered. The challenger has to point to the identity already registered or to a duplicate submission.
-  DoesNotExist, // The submitter is not real. For example, this can be used for videos showing computer generated persons.
+  IncorrectSubmission, // Request does not comply with the rules.
+  IdentityTheft, // Attempt to claim the humanity ID of another human.
+  SybilAttack, // Duplicate or human does not exist.
+  Deceased // Human has existed but does not exist anymore.
 }
