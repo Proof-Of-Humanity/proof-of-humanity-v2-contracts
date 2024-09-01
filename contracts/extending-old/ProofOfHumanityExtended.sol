@@ -828,7 +828,10 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             requestBaseDeposit
         );
 
-        require(_contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost));
+        Round storage round = request.challenges[0].rounds[0];
+        _contribute(round, _humanityId, requestId, 0, 0, Party.Requester, totalCost);
+        require(round.paidFees.forRequester >= totalCost);
+        round.sideFunded = Party.Requester;
 
         emit RevocationRequest(msg.sender, _humanityId, requestId);
         emit Evidence(
@@ -850,14 +853,17 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function fundRequest(bytes20 _humanityId, uint256 _requestId) external payable {
         Request storage request = humanityData[_humanityId].requests[_requestId];
         require(request.status == Status.Vouching);
-        require(request.challenges[0].rounds[0].sideFunded == Party.None);
 
         ArbitratorData memory arbitratorData = arbitratorDataHistory[request.arbitratorDataId];
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
             requestBaseDeposit
         );
 
-        _contribute(_humanityId, _requestId, 0, 0, Party.Requester, totalCost);
+        Round storage round = request.challenges[0].rounds[0];
+        _contribute(round, _humanityId, _requestId, 0, 0, Party.Requester, totalCost);
+
+        if (round.paidFees.forRequester >= totalCost)
+            round.sideFunded = Party.Requester;
     }
 
     /** @notice Vouch that the human corresponds to the humanity id.
@@ -1067,7 +1073,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         ArbitratorData memory arbitratorData = arbitratorDataHistory[request.arbitratorDataId];
         uint256 arbitrationCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData);
 
-        require(_contribute(_humanityId, _requestId, challengeId, 0, Party.Challenger, arbitrationCost));
+        _contribute(round, _humanityId, _requestId, challengeId, 0, Party.Challenger, arbitrationCost);
+        require(round.paidFees.forChallenger >= arbitrationCost);
+        round.sideFunded = Party.None; // Set this back to 0, since it's no longer relevant as the new round is created.
 
         // Subtract the costs from the total of staked contributions.
         round.feeRewards = round.feeRewards.subCap(arbitrationCost);
@@ -1138,8 +1146,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         Challenge storage challenge = request.challenges[disputeData.challengeId];
         Round storage round = challenge.rounds[challenge.lastRoundId];
 
-        Party firstFunded = round.sideFunded;
-        require(_side != firstFunded);
+        require(_side != round.sideFunded);
 
         uint256 appealCost = IArbitrator(_arbitrator).appealCost(
             _disputeId,
@@ -1147,28 +1154,25 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         );
         uint256 totalCost = appealCost.addCap(appealCost.mulCap(multiplier) / MULTIPLIER_DIVISOR);
 
-        if (
-            _contribute(
-                disputeData.humanityId,
-                disputeData.requestId,
-                disputeData.challengeId,
-                challenge.lastRoundId,
-                _side,
-                totalCost
-            ) &&
+        _contribute(round, disputeData.humanityId, disputeData.requestId, disputeData.challengeId, challenge.lastRoundId, _side, totalCost);
+        uint256 paidFees = _side == Party.Requester ? round.paidFees.forRequester : round.paidFees.forChallenger;
+        if (paidFees >= totalCost) {
             // If firstFunded was assigned, it means other side was funded and if this one gets fully funded as well appeal can be created.
-            firstFunded != Party.None
-        ) {
-            IArbitrator(_arbitrator).appeal{value: appealCost}(
-                _disputeId,
-                arbitratorDataHistory[request.arbitratorDataId].arbitratorExtraData
-            );
-            challenge.lastRoundId++;
+            if (round.sideFunded == Party.None) {
+                round.sideFunded = _side;
+            } else {
+                IArbitrator(_arbitrator).appeal{value: appealCost}(
+                    _disputeId,
+                    arbitratorDataHistory[request.arbitratorDataId].arbitratorExtraData
+                );
+                challenge.lastRoundId++;
 
-            // Subtract the costs from the total of staked contributions
-            round.feeRewards = round.feeRewards.subCap(appealCost);
+                // Subtract the costs from the total of staked contributions
+                round.feeRewards = round.feeRewards.subCap(appealCost);
+                round.sideFunded = Party.None; // Set this back to default in the past round as it's no longer relevant.
 
-            emit AppealCreated(IArbitrator(_arbitrator), _disputeId);
+                emit AppealCreated(IArbitrator(_arbitrator), _disputeId);
+            }
         }
     }
 
@@ -1467,49 +1471,49 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         uint256 totalCost = arbitratorData.arbitrator.arbitrationCost(arbitratorData.arbitratorExtraData).addCap(
             requestBaseDeposit
         );
-        _contribute(_humanityId, requestId, 0, 0, Party.Requester, totalCost);
+
+        Round storage round = request.challenges[0].rounds[0];
+        _contribute(round, _humanityId, requestId, 0, 0, Party.Requester, totalCost);
+        if (round.paidFees.forRequester >= totalCost)
+            round.sideFunded = Party.Requester;
     }
 
     /** @dev Make a fee contribution. Reimburse remaining ETH.
+     *  @param _round Round struct.
      *  @param _humanityId Humanity ID corresponding to the request.
      *  @param _requestId Request corresponding to the round.
      *  @param _challengeId Challenge corresponding to the round.
      *  @param _roundId Round to contribute to.
      *  @param _side Side to contribute to.
      *  @param _totalRequired Total amount required for this side.
-     *  @return paidInFull Whether the contribution was paid in full.
      */
     function _contribute(
+        Round storage _round,
         bytes20 _humanityId,
         uint256 _requestId,
         uint256 _challengeId,
         uint256 _roundId,
         Party _side,
         uint256 _totalRequired
-    ) internal returns (bool paidInFull) {
-        Round storage round = humanityData[_humanityId].requests[_requestId].challenges[_challengeId].rounds[_roundId];
-
+    ) internal {
         uint256 remainingETH;
         uint256 contribution = msg.value;
         uint256 requiredAmount = _totalRequired.subCap(
-            _side == Party.Requester ? round.paidFees.forRequester : round.paidFees.forChallenger
+            _side == Party.Requester ? _round.paidFees.forRequester : _round.paidFees.forChallenger
         );
         if (requiredAmount <= msg.value) {
             contribution = requiredAmount;
             remainingETH = msg.value - requiredAmount;
-
-            paidInFull = true;
-            round.sideFunded = round.sideFunded == Party.None ? _side : Party.None;
         }
 
         if (_side == Party.Requester) {
-            round.contributions[msg.sender].forRequester += contribution;
-            round.paidFees.forRequester += contribution;
+            _round.contributions[msg.sender].forRequester += contribution;
+            _round.paidFees.forRequester += contribution;
         } else {
-            round.contributions[msg.sender].forChallenger += contribution;
-            round.paidFees.forChallenger += contribution;
+            _round.contributions[msg.sender].forChallenger += contribution;
+            _round.paidFees.forChallenger += contribution;
         }
-        round.feeRewards += contribution;
+        _round.feeRewards += contribution;
 
         emit Contribution(_humanityId, _requestId, _challengeId, _roundId, msg.sender, contribution, _side);
 
