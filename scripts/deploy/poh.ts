@@ -6,16 +6,17 @@ async function main() {
   const [deployer] = await ethers.getSigners();
   const chainId = +(await getChainId());
 
+
   const module = await getRouteToConsts(chainId);
   
   const PoH = await ethers.getContractFactory("ProofOfHumanity", deployer);
   const poh = (await upgrades.deployProxy(PoH, [
     module.FixedAddresses[chainId].W_NATIVE,
     module.FixedAddresses[chainId].ARBITRATOR,
-    module.InitParams.ARBITRATOR_EXTRA_DATA,
+    module.InitSpecificParams.ARBITRATOR_EXTRA_DATA_SIDECHAIN,
     REGISTRATION_META_EVIDENCE,
     CLEARING_META_EVIDENCE,
-    module.InitParams.REQUEST_BASE_DEPOSIT_SIDECHAIN,
+    module.InitSpecificParams.REQUEST_BASE_DEPOSIT_SIDECHAIN,
     module.InitParams.HUMANITY_LIFESPAN,
     module.InitParams.RENEWAL_DURATION,
     module.InitParams.FAILED_REV_COOL_DOWN,

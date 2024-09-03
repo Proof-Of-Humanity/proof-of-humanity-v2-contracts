@@ -12,10 +12,10 @@ async function main() {
   const poh = (await upgrades.deployProxy(PoH, [
     module.FixedAddresses[chainId].W_NATIVE,
     module.FixedAddresses[chainId].ARBITRATOR,
-    module.InitParams.ARBITRATOR_EXTRA_DATA,
+    module.InitSpecificParams.ARBITRATOR_EXTRA_DATA_MAINNET,
     REGISTRATION_META_EVIDENCE,
     CLEARING_META_EVIDENCE,
-    module.InitParams.REQUEST_BASE_DEPOSIT_MAINNET,
+    module.InitSpecificParams.REQUEST_BASE_DEPOSIT_MAINNET,
     module.InitParams.HUMANITY_LIFESPAN,
     module.InitParams.RENEWAL_DURATION,
     module.InitParams.FAILED_REV_COOL_DOWN,

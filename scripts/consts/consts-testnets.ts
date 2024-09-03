@@ -1,5 +1,5 @@
 import { WeiPerEther } from "ethers";
-import { AddressSetFixed, InitParamSet } from "./interfaces/i-sets";
+import { AddressSetFixed, InitGeneralParamSet, InitSpecificParamSet } from "./interfaces/i-sets";
 import { Chain } from "./chains/chains-testnets";
 
 import { Addresses } from "./addresses/addresses-testnets-new";
@@ -7,11 +7,16 @@ import { Addresses } from "./addresses/addresses-testnets-new";
 
 export { Addresses };
 
-export const InitParams: InitParamSet = {
-  ARBITRATOR_EXTRA_DATA: 
-  "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+export const InitSpecificParams: InitSpecificParamSet = {
+  ARBITRATOR_EXTRA_DATA_MAINNET: 
+  "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", // PoH Court ID
+  ARBITRATOR_EXTRA_DATA_SIDECHAIN: 
+  "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001", // PoH Court ID
   REQUEST_BASE_DEPOSIT_MAINNET: WeiPerEther / 100n, // Used by pohlegacy to simulate pohv1 in Sepolia
   REQUEST_BASE_DEPOSIT_SIDECHAIN: WeiPerEther / 100n,
+}
+
+export const InitParams: InitGeneralParamSet = {
   HUMANITY_LIFESPAN: 864000,
   RENEWAL_DURATION: 863940,
   CHALLENGE_DURATION: 60,

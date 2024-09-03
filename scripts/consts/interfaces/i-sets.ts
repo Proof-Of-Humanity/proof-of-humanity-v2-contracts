@@ -13,10 +13,14 @@ export interface AddressSetFixed {
     W_NATIVE: string;
 }
 
-export interface InitParamSet {
-    ARBITRATOR_EXTRA_DATA: string,
+export interface InitSpecificParamSet {
+    ARBITRATOR_EXTRA_DATA_MAINNET: string,
+    ARBITRATOR_EXTRA_DATA_SIDECHAIN: string,
     REQUEST_BASE_DEPOSIT_MAINNET: bigint,
     REQUEST_BASE_DEPOSIT_SIDECHAIN: bigint,
+}
+
+export interface InitGeneralParamSet {
     HUMANITY_LIFESPAN: number,
     RENEWAL_DURATION: number,
     CHALLENGE_DURATION: number,
