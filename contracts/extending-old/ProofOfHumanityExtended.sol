@@ -1192,10 +1192,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         require(request.challengePeriodStart + challengePeriodDuration < block.timestamp);
 
         if (request.revocation) {
+            humanity.pendingRevocation = false;
             if (humanity.owner != address(0x0) && block.timestamp < humanity.expirationTime) {
-                delete humanity.owner;
-                humanity.pendingRevocation = false;
-
+                delete humanity.owner;    
                 // If not claimed in this contract, directly remove in fork module.
             } else forkModule.remove(address(_humanityId));
 
