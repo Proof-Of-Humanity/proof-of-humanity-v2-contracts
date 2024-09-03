@@ -544,7 +544,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     function ccDischargeHumanity(
         address _account
     ) external onlyCrossChain returns (bytes20 humanityId, uint40 expirationTime) {
-        humanityId = accountHumanity[_account];
+        humanityId = humanityOf(_account);
         Humanity storage humanity = humanityData[humanityId];
         require(humanity.nbPendingRequests == 0);
 
@@ -555,9 +555,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
             delete humanity.owner;
         } else {
-            // V1 profiles have default humanity.
-            humanityId = bytes20(_account);
-
             // Should revert in case account is not registered.
             expirationTime = forkModule.tryRemove(_account);
         }
