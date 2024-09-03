@@ -390,7 +390,7 @@ contract CrossChainProofOfHumanity is ICrossChainProofOfHumanity {
         return !humanity.isHomeChain
             && humanityId != bytes20(0x0)
             && humanity.owner == _account
-            && humanity.expirationTime > block.timestamp;
+            && humanity.expirationTime >= block.timestamp;
     }
 
     /** @notice Get the owner of a humanity. Returns null address if not claimed
