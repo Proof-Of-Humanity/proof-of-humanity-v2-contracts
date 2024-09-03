@@ -1250,8 +1250,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
             if (applyPenalty) {
                 // Situation when vouching address is in the middle of renewal process.
                 if (voucherHumanity.owner != address(0x0) && block.timestamp < voucherHumanity.expirationTime) {
-                    uint256 voucherRequestId = voucherHumanity.requestCount[voucherHumanity.owner] - 1;
-                    if (voucherRequestId != 0) voucherHumanity.requests[voucherRequestId].punishedVouch = true;
+                    uint256 voucherRequestCount = voucherHumanity.requestCount[voucherHumanity.owner];
+                    if (voucherRequestCount != 0) voucherHumanity.requests[voucherRequestCount - 1].punishedVouch = true;
 
                     delete voucherHumanity.owner;
 
