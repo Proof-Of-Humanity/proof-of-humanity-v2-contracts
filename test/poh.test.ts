@@ -92,8 +92,8 @@ describe("ProofOfHumanity", function () {
     expect(await poh.humanityLifespan()).to.equal(submissionDuration);
     expect(await poh.renewalPeriodDuration()).to.equal(renewalPeriodDuration);
     expect(await poh.challengePeriodDuration()).to.equal(challengePeriodDuration);
-    expect(await poh.challengePeriodDuration()).to.equal(challengePeriodDuration);
     expect(await poh.failedRevocationCooldown()).to.equal(failedRevocationCooldown);
+    expect(await poh.sharedStakeMultiplier()).to.equal(sharedStakeMultiplier);
     expect(await poh.winnerStakeMultiplier()).to.equal(winnerStakeMultiplier);
     expect(await poh.loserStakeMultiplier()).to.equal(loserStakeMultiplier);
     expect(await poh.requiredNumberOfVouches()).to.equal(nbVouches);
@@ -2014,6 +2014,7 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(governor).changeGovernor(other.address))
       .to.emit(poh, "GovernorChanged")
       .withArgs(other.address);
+    expect(await poh.governor()).to.equal(other.address, "Wrong governor");
     // Change governor back for convenience
     await poh.connect(other).changeGovernor(governor.address);
 
@@ -2021,21 +2022,30 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(governor).changeRequestBaseDeposit(1))
       .to.emit(poh, "RequestBaseDepositChanged")
       .withArgs(1);
+    expect(await poh.requestBaseDeposit()).to.equal(1, "Wrong base deposit");
 
-    await expect(poh.connect(other).changeDurations(100, 10, 5, 10)).to.be.revertedWithoutReason();
-    await expect(poh.connect(governor).changeDurations(100, 10, 5, 10))
+    await expect(poh.connect(other).changeDurations(100, 10, 5, 12)).to.be.revertedWithoutReason();
+    await expect(poh.connect(governor).changeDurations(100, 10, 5, 12))
       .to.emit(poh, "DurationsChanged")
-      .withArgs(100, 10, 5, 10);
+      .withArgs(100, 10, 5, 12);
+    expect(await poh.humanityLifespan()).to.equal(100, "Wrong submission duration");
+    expect(await poh.renewalPeriodDuration()).to.equal(10, "Wrong renewal period");
+    expect(await poh.challengePeriodDuration()).to.equal(5, "Wrong challenge period");
+    expect(await poh.failedRevocationCooldown()).to.equal(12, "Wrong failed revocation cooldown");
 
     await expect(poh.connect(other).changeRequiredNumberOfVouches(100)).to.be.revertedWithoutReason();
     await expect(poh.connect(governor).changeRequiredNumberOfVouches(100))
       .to.emit(poh, "RequiredNumberOfVouchesChanged")
       .withArgs(100);
+    expect(await poh.requiredNumberOfVouches()).to.equal(100, "Wrong required number of vouches");
 
     await expect(poh.connect(other).changeStakeMultipliers(10000, 20000, 30000)).to.be.revertedWithoutReason();
     await expect(poh.connect(governor).changeStakeMultipliers(10000, 20000, 30000))
       .to.emit(poh, "StakeMultipliersChanged")
       .withArgs(10000, 20000, 30000);
+    expect(await poh.sharedStakeMultiplier()).to.equal(10000, "Wrong shared multiplier");
+    expect(await poh.winnerStakeMultiplier()).to.equal(20000, "Wrong winner multiplier");
+    expect(await poh.loserStakeMultiplier()).to.equal(30000, "Wrong loser multiplier");
 
     await expect(poh.connect(other).changeMetaEvidence("reg", "clear")).to.be.revertedWithoutReason();
     await expect(poh.connect(governor).changeMetaEvidence("reg", "clear"))
@@ -2060,5 +2070,6 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(governor).changeCrossChainProofOfHumanity(other.address))
       .to.emit(poh, "CrossChainProxyChanged")
       .withArgs(other.address);
+    expect(await poh.crossChainProofOfHumanity()).to.equal(other.address, "Wrong crosschain address");
   });
 });
