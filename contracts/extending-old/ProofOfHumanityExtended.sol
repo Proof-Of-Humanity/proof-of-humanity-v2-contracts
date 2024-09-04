@@ -547,9 +547,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         humanityId = humanityOf(_account);
         Humanity storage humanity = humanityData[humanityId];
         require(humanity.nbPendingRequests == 0);
+        require(!humanity.vouching);
 
-        if (humanity.owner == _account && block.timestamp < humanity.expirationTime) {
-            require(!humanity.vouching);
+        if (humanity.owner == _account && block.timestamp < humanity.expirationTime) {										
 
             expirationTime = humanity.expirationTime;
 
