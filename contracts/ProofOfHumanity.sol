@@ -186,6 +186,8 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 public winnerStakeMultiplier;
     /// @dev Multiplier for calculating the fee stake paid by the party that lost the previous round.
     uint256 public loserStakeMultiplier;
+    /// @dev The number of humanities registered at some moment.
+    uint256 public humanityCount;
 
     /// @dev Gap for possible future versions storage layout changes.
     uint256[50] internal __gap;
@@ -1414,6 +1416,7 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
         Humanity storage humanity = humanityData[_humanityId];
 
         requestId = humanity.requests.length;
+        if (requestId == 0) humanityCount++;
 
         Request storage request = humanity.requests.push();
         request.requester = payable(msg.sender);
@@ -1675,5 +1678,11 @@ contract ProofOfHumanity is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function getNumberOfVouches(bytes20 _humanityId, uint256 _requestId) external view returns (uint256) {
         return humanityData[_humanityId].requests[_requestId].vouches.length;
+    }
+
+    /** @notice Get the number of humanities registered at some moment.
+     */
+    function getHumanityCount() external view returns (uint256) {
+        return humanityCount;
     }
 }

@@ -35,4 +35,6 @@ interface IProofOfHumanity {
             address owner,
             uint256 nbRequests
         );
+
+    function getHumanityCount() external view returns (uint256);
 }
