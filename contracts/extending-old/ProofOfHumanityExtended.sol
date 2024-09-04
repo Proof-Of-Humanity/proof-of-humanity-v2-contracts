@@ -1202,6 +1202,8 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         } else if (!request.punishedVouch) {
             humanity.owner = request.requester;
             humanity.expirationTime = uint40(block.timestamp).addCap40(humanityLifespan);
+            // Register profile on V2 and remove it on V1 if it's present there.
+            if (forkModule.isRegistered(address(_humanityId))) forkModule.remove(address(_humanityId));
 
             emit HumanityClaimed(_humanityId, _requestId);
         }
@@ -1392,6 +1394,9 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
                     if (request.usedReasons == FULL_REASONS_SET) {
                         humanity.owner = request.requester;
                         humanity.expirationTime = uint40(block.timestamp).addCap40(humanityLifespan);
+                        // Register profile on V2 and remove it on V1 if it's present there.
+                        if (forkModule.isRegistered(address(disputeData.humanityId)))
+                            forkModule.remove(address(disputeData.humanityId));
 
                         emit HumanityClaimed(disputeData.humanityId, disputeData.requestId);
                     } else {
