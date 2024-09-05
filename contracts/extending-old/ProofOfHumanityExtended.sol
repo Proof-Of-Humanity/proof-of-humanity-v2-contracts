@@ -1260,8 +1260,12 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
 
                     delete voucherHumanity.owner;
 
-                    // If not claimed in this contract, directly remove in fork module.
-                } else forkModule.remove(address(voucherHumanityId));
+                // If not claimed in this contract, directly remove in fork module.
+                } else {
+                    uint256 voucherRequestCount = voucherHumanity.requestCount[address(voucherHumanityId)];
+                    if (voucherRequestCount != 0) voucherHumanity.requests[voucherRequestCount - 1].punishedVouch = true;
+                    forkModule.remove(address(voucherHumanityId));
+                }
 
                 emit HumanityDischargedDirectly(voucherHumanityId);
             }
