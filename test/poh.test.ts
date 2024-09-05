@@ -243,7 +243,7 @@ describe("ProofOfHumanity", function () {
     // Change metaevidence so arbitrator data ID is not 0
     await poh.connect(governor).changeMetaEvidence("1", "2");
     const oldBalance = await ethers.provider.getBalance(requester.address);
-
+    expect(await poh.humanityCount()).to.equal(0, "Count should be 0");
     const addSubmissionTX = await (
       await poh.connect(requester).claimHumanity(requester.address, evidence, name, {
         gasPrice: gasPrice,
@@ -253,6 +253,7 @@ describe("ProofOfHumanity", function () {
     ).wait();
     if (!addSubmissionTX) return;
     const txFee = addSubmissionTX.gasUsed * gasPrice;
+    expect(await poh.humanityCount()).to.equal(1, "Count should increase");
 
     const newBalance = await ethers.provider.getBalance(requester.address);
     expect(newBalance).to.equal(oldBalance - txFee - BigInt(requesterTotalCost), "Incorrect balance after submission");
@@ -330,6 +331,8 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(requester2).claimHumanity(requester2.address, evidence, name))
       .to.emit(poh, "ClaimRequest")
       .withArgs(requester2.address, requester2.address.toLowerCase(), 0, name);
+
+    expect(await poh.humanityCount()).to.equal(2, "Count should increase once per each claim");
   });
 
   it("Should correctly fund a new submission", async () => {
@@ -407,7 +410,7 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(other).fundRequest(voucher1.address, 0, { value: 500 })).to.be.revertedWithPanic("0x32");
   });
 
-  it("Check the funding bug status. Remove this test when it's fixed", async () => {
+  it("Should not change the fully funded status", async () => {
     await poh.connect(requester).claimHumanity(requester.address, evidence, name, { value: requesterTotalCost });
 
     let roundInfo = await poh.getRoundInfo(requester.address, 0, 0, 0); // id, request, challenge, round
@@ -423,13 +426,8 @@ describe("ProofOfHumanity", function () {
     expect(roundInfo[0]).to.equal(false, "Should not be appealed");
     expect(roundInfo[1]).to.equal(6000, "Funded value registered incorrectly");
     expect(roundInfo[2]).to.equal(0, "Challenger should not be funded");
-    expect(roundInfo[3]).to.equal(Party.None, "Incorrect party funding status");
+    expect(roundInfo[3]).to.equal(Party.Requester, "Party funding status should not change");
     expect(roundInfo[4]).to.equal(6000, "Incorrect fee rewards value");
-
-    await poh.connect(requester).fundRequest(requester.address, 0);
-
-    roundInfo = await poh.getRoundInfo(requester.address, 0, 0, 0);
-    expect(roundInfo[3]).to.equal(Party.Requester, "Incorrect party funding status");
   });
 
   it("Should set correct values after creating a request to remove a submission", async () => {
