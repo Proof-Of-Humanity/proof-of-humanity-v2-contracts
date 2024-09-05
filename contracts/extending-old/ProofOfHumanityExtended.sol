@@ -199,7 +199,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     ArbitratorData[] public arbitratorDataHistory;
 
     /// @dev Maps the humanity id to the Humanity data. humanityData[humanityId].
-    mapping(bytes20 => Humanity) private humanityData;
+    mapping(bytes20 => Humanity) public humanityData;
 
     /// @dev Maps the address to the humanityId. It includes mapping to the humanity the owner or the account is in process of claiming. accountHumanity[address].
     mapping(address => bytes20) private accountHumanity;
@@ -1619,115 +1619,6 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
      */
     function getClaimerRequestId(address _claimer) external view returns (uint256) {
         return humanityData[accountHumanity[_claimer]].requestCount[_claimer] - 1;
-    }
-
-    /** @notice Get information of a request of a humanity.
-     *  @param _humanityId The address of the humanity.
-     *  @param _requestId The request ID
-     */
-    function getRequestInfo(
-        bytes20 _humanityId,
-        uint256 _requestId
-    )
-        external
-        view
-        returns (
-            bool punishedVouch,
-            uint8 usedReasons,
-            uint16 arbitratorDataId,
-            uint16 lastChallengeId,
-            uint40 challengePeriodStart,
-            address payable requester,
-            address payable ultimateChallenger,
-            Status status,
-            Reason currentReason
-        )
-    {
-        Request storage request = humanityData[_humanityId].requests[_requestId];
-        return (
-            request.punishedVouch,
-            request.usedReasons,
-            request.arbitratorDataId,
-            request.lastChallengeId,
-            request.challengePeriodStart,
-            request.requester,
-            request.ultimateChallenger,
-            request.status,
-            request.currentReason
-        );
-    }
-
-    /** @notice Get the information of a particular challenge of the request.
-     *  @param _humanityId The queried humanity Id.
-     *  @param _requestId The request to query.
-     *  @param _challengeId The challenge to query.
-     *  @return lastRoundId Id of last round.
-     *  @return challenger Address that challenged the request.
-     *  @return disputeId Id of the dispute related to the challenge.
-     *  @return ruling Ruling given by the arbitrator of the dispute.
-     */
-    function getChallengeInfo(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        uint256 _challengeId
-    ) external view returns (uint16 lastRoundId, address challenger, uint256 disputeId, Party ruling) {
-        Challenge storage challenge = humanityData[_humanityId].requests[_requestId].challenges[_challengeId];
-        return (challenge.lastRoundId, challenge.challenger, challenge.disputeId, challenge.ruling);
-    }
-
-    /** @notice Get the information of a round of a request.
-     *  @param _humanityId The queried humanity Id.
-     *  @param _requestId The request to query.
-     *  @param _challengeId The challenge to query.
-     *  @param _round The round to query.
-     */
-    function getRoundInfo(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        uint256 _challengeId,
-        uint256 _round
-    )
-        external
-        view
-        returns (
-            bool appealed,
-            uint256 paidFeesRequester,
-            uint256 paidFeesChallenger,
-            Party sideFunded,
-            uint256 feeRewards
-        )
-    {
-        Challenge storage challenge = humanityData[_humanityId].requests[_requestId].challenges[_challengeId];
-        Round storage round = challenge.rounds[_round];
-        return (
-            _round < (challenge.lastRoundId),
-            round.paidFees.forRequester,
-            round.paidFees.forChallenger,
-            round.sideFunded,
-            round.feeRewards
-        );
-    }
-
-    /** @notice Get the contributions made by a party for a given round of a given challenge of a request.
-     *  @param _humanityId The humanity id.
-     *  @param _requestId The request to query.
-     *  @param _challengeId the challenge to query.
-     *  @param _round The round to query.
-     *  @param _contributor The address of the contributor.
-     */
-    function getContributions(
-        bytes20 _humanityId,
-        uint256 _requestId,
-        uint256 _challengeId,
-        uint256 _round,
-        address _contributor
-    ) external view returns (uint256 forRequester, uint256 forChallenger) {
-        ContributionsSet memory contributions = humanityData[_humanityId]
-            .requests[_requestId]
-            .challenges[_challengeId]
-            .rounds[_round]
-            .contributions[_contributor];
-        return (contributions.forRequester, contributions.forChallenger);
     }
 
     /** @notice Get the number of vouches of a particular request.
