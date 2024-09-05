@@ -12,6 +12,8 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0x52C6FC2ffFa6F984A4663Fb8781d11640803720A",
     LEGACY: NULL_Address,
     //PROXY_ADMIN: ""
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0x"
   },
   [Chain.SEPOLIA]: {
     // Complete while the corresponding scripts are executed
@@ -22,5 +24,7 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0xdD6c7e64D85D5aae6A09f8Ca3Bf0668B163Ac35F",
     LEGACY: "0xDC605c9094cDdF2af1704c25D7D69A97a08c7E30",
     //PROXY_ADMIN: "0x156b2D2c2f3b2767a05CB817E059ca63D3dDa420",
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0x"
   }
 };

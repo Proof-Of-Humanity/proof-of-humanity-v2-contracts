@@ -12,6 +12,8 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0x56350e6827263B8521192d4979D341dA7582A996",
     LEGACY: NULL_Address,
     //PROXY_ADMIN: "0x856B71a157377dd43CCAC11430fe50d0912a46b4"
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0x"
   },
   [Chain.SEPOLIA]: { // OLD
     // Complete while the corresponding scripts are executed
@@ -21,6 +23,8 @@ export const Addresses: Record<number, AddressSet> = {
     CC_Implementation: "0x1b1938b88f98aac56ae6d5beeb72abd6b858061c",
     GATEWAY: "0x3787Aa5c2c03A1AC49555F84750e9503ba9A9043",
     LEGACY: "0x08Db8FD559cb4e3668f994553871c7eBa7c3941a",
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0x"
   },
   /* 
   // Contracts were deployed on Gnosis instead of Chiado in the first development version of PoHv2 

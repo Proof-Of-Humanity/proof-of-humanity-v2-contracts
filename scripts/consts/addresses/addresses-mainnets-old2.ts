@@ -12,7 +12,8 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0xb89D480e56Fe4915466eAbE64733adb6EfEfFc81",
     LEGACY: POH_V1_Address,
     //PROXY_ADMIN: "",
-    //FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555"
+    FORK_MODULE: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
+    PROXY_TOKEN: "0x"
   },
   [Chain.GNOSIS]: {
     // Complete while the corresponding scripts are executed
@@ -24,5 +25,7 @@ export const Addresses: Record<number, AddressSet> = {
     GATEWAY: "0xcA4E378D1815790c0d160e2cEcb8011903DD0555",
     LEGACY: NULL_Address,
     //PROXY_ADMIN: ""
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0x"
   },
 };

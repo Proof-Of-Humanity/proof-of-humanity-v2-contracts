@@ -13,7 +13,10 @@ export const Addresses: Record<number, AddressSet> = {
     LEGACY: POH_V1_Address, // Fixed
     //PROXY_ADMIN: "0x546bd92b3cDbf2000746a513B96659c926445c50",
     //PROXY_ADMIN_CC: "0x91b3Cb9e5A276ede97C3EE6088d5956DD01BcaA2",
-    //FORK_MODULE: "0x068a27Db9c3B8595D03be263d52c813cb2C99cCB",
+    FORK_MODULE: "0x068a27Db9c3B8595D03be263d52c813cb2C99cCB",
+    //FORK_Implementation: "0xfd6a2eDAeef62E9cd828053fdd0d944Ff04a4f66",
+    //FORK_ADMIN: "0x6DeD4EBAaB8011F8cbf223bb36B82bcDd363179C",
+    PROXY_TOKEN: "0xf39F77AC0c0a009ad26572451267eCbD74F9c79c"
   },
   [Chain.GNOSIS]: {
     // Complete while the corresponding scripts are executed
@@ -25,5 +28,7 @@ export const Addresses: Record<number, AddressSet> = {
     LEGACY: NULL_Address, // Fixed
     //PROXY_ADMIN: "0xdEF33793a7924f876b20BE435Da5C234CE60a437",
     //PROXY_ADMIN_CC: "0x35eC1E9abb85365520CA0F099859064CE1678094",
+    FORK_MODULE: "0x",
+    PROXY_TOKEN: "0xfD01A2067b35A5f2aa3d5785fDcbb6f945a3a0Ab"
   },
 };
