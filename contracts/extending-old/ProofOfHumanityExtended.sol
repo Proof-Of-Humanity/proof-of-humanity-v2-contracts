@@ -185,7 +185,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
     uint256 public winnerStakeMultiplier;
     /// @dev Multiplier for calculating the fee stake paid by the party that lost the previous round.
     uint256 public loserStakeMultiplier;
-    /// @dev The number of humanities registered at some moment.
+    /// @dev The number of humanities registered at some moment. Doesn't include profiles from V1.
     uint256 public humanityCount;
 
     /// @dev Fork Module instance to be used for interacting with v1 state.
@@ -1734,7 +1734,7 @@ contract ProofOfHumanityExtended is IProofOfHumanity, IArbitrable, IEvidence {
         return humanityData[_humanityId].requests[_requestId].vouches.length;
     }
 
-    /** @notice Get the number of humanities registered at some moment.
+    /** @notice Get the number of humanities registered at some moment. Note that profiles from V1 aren't included.
      */
     function getHumanityCount() external view returns (uint256) {
         return humanityCount;
