@@ -1,7 +1,16 @@
 import { ethers, network } from "hardhat";
 import { expect } from "chai";
 import { AddressZero } from "@ethersproject/constants";
-import { MockArbitrator, MockArbitrator__factory, ProofOfHumanity, ProofOfHumanity__factory } from "../typechain-types";
+import {
+  MockArbitrator,
+  MockArbitrator__factory,
+  ProofOfHumanityExtended,
+  ProofOfHumanityExtended__factory,
+  ForkModule,
+  ForkModule__factory,
+  ProofOfHumanityOld,
+  ProofOfHumanityOld__factory,
+} from "../typechain-types";
 import { solidityPackedKeccak256 } from "ethers";
 import { Party, Reason, Status } from "../utils/enums";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
@@ -30,7 +39,9 @@ const evidence = "I'm human";
 const name = "123";
 
 let arbitrator: MockArbitrator;
-let poh: ProofOfHumanity;
+let poh: ProofOfHumanityExtended;
+let forkModule: ForkModule;
+let pohOld: ProofOfHumanityOld;
 
 let [
   governor,
@@ -46,44 +57,63 @@ let [
   crosschainMock,
 ]: SignerWithAddress[] = [];
 
-describe("ProofOfHumanity", function () {
-  beforeEach("Initializing the contracts", async () => {
-    [
-      governor,
-      requester,
-      requester2,
-      challenger1,
-      challenger2,
-      voucher1,
-      voucher2,
-      voucher3,
-      other,
-      wNativeMock,
-      crosschainMock,
-    ] = await ethers.getSigners();
-    arbitrator = await new MockArbitrator__factory(governor).deploy(arbitrationCost);
+beforeEach("Initializing the contracts", async () => {
+  [
+    governor,
+    requester,
+    requester2,
+    challenger1,
+    challenger2,
+    voucher1,
+    voucher2,
+    voucher3,
+    other,
+    wNativeMock,
+    crosschainMock,
+  ] = await ethers.getSigners();
+  arbitrator = await new MockArbitrator__factory(governor).deploy(arbitrationCost);
 
-    await arbitrator.connect(other).createDispute(3, arbitratorExtraData, { value: arbitrationCost }); // Create a dispute so the index in tests will not be a default value.
+  await arbitrator.connect(other).createDispute(3, arbitratorExtraData, { value: arbitrationCost }); // Create a dispute so the index in tests will not be a default value.
 
-    poh = await new ProofOfHumanity__factory(governor).deploy();
-    await poh
-      .connect(governor)
-      .initialize(
-        wNativeMock.address,
-        arbitrator.target,
-        arbitratorExtraData,
-        registrationMetaEvidence,
-        clearingMetaEvidence,
-        submissionBaseDeposit,
-        submissionDuration,
-        renewalPeriodDuration,
-        challengePeriodDuration,
-        failedRevocationCooldown,
-        [sharedStakeMultiplier, winnerStakeMultiplier, loserStakeMultiplier],
-        nbVouches
-      );
-    await poh.connect(governor).changeCrossChainProofOfHumanity(crosschainMock);
-  });
+  pohOld = await new ProofOfHumanityOld__factory(governor).deploy(
+    arbitrator.target,
+    arbitratorExtraData,
+    registrationMetaEvidence,
+    clearingMetaEvidence,
+    submissionBaseDeposit,
+    submissionDuration,
+    renewalPeriodDuration,
+    challengePeriodDuration,
+    [sharedStakeMultiplier, winnerStakeMultiplier, loserStakeMultiplier],
+    nbVouches
+  );
+
+  poh = await new ProofOfHumanityExtended__factory(governor).deploy();
+  await poh
+    .connect(governor)
+    .initialize(
+      wNativeMock.address,
+      arbitrator.target,
+      arbitratorExtraData,
+      registrationMetaEvidence,
+      clearingMetaEvidence,
+      submissionBaseDeposit,
+      submissionDuration,
+      renewalPeriodDuration,
+      challengePeriodDuration,
+      failedRevocationCooldown,
+      [sharedStakeMultiplier, winnerStakeMultiplier, loserStakeMultiplier],
+      nbVouches
+    );
+  await poh.connect(governor).changeCrossChainProofOfHumanity(crosschainMock);
+
+  forkModule = await new ForkModule__factory(governor).deploy();
+  await forkModule.connect(governor).initialize(pohOld.target, poh.target);
+  await poh.connect(governor).changeForkModule(forkModule.target);
+});
+
+describe("ProofOfHumanityStandard", function () {
+  // Check standard PoH functionality first.
 
   it("Should return the correct initial value", async function () {
     expect(await poh.governor()).to.equal(governor.address);
@@ -173,7 +203,9 @@ describe("ProofOfHumanity", function () {
     await expect(poh.connect(other).ccDischargeHumanity(requester.address)).to.be.revertedWithoutReason();
 
     // Should revert when supplied address doesn't match owner (0 in this case as requester2 profile isn't claimed)
-    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester2.address)).to.be.revertedWithoutReason();
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester2.address)).to.be.revertedWith(
+      "Not registered, expired or submitted after the fork!"
+    );
 
     // Shouldn't allow discharge while request is active
     await poh.connect(requester).revokeHumanity(requester.address, evidence, { value: requesterTotalCost });
@@ -192,7 +224,9 @@ describe("ProofOfHumanity", function () {
 
     await network.provider.send("evm_increaseTime", [submissionDuration + 1]);
 
-    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWithoutReason();
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWith(
+      "Not registered, expired or submitted after the fork!"
+    );
   });
 
   it("Check vouching require for crosschain discharge", async function () {
@@ -236,7 +270,9 @@ describe("ProofOfHumanity", function () {
 
     // Should revert 2nd time
 
-    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWithoutReason();
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWith(
+      "Not registered, expired or submitted after the fork!"
+    );
   });
 
   it("Should set correct values after creating a request to add new submission", async () => {
@@ -2069,5 +2105,403 @@ describe("ProofOfHumanity", function () {
       .to.emit(poh, "CrossChainProxyChanged")
       .withArgs(other.address);
     expect(await poh.crossChainProofOfHumanity()).to.equal(other.address, "Wrong crosschain address");
+
+    await expect(poh.connect(other).changeForkModule(poh.target)).to.be.revertedWithoutReason();
+  });
+});
+
+describe("ProofOfHumanityExtended", function () {
+  beforeEach("Create a v1 profile", async () => {
+    await pohOld.connect(governor).addSubmissionManually([requester.address], [""], [""]);
+
+    // Deploy fork module 2nd time so the profile isn't registered after fork
+    forkModule = await new ForkModule__factory(governor).deploy();
+    await forkModule.connect(governor).initialize(pohOld.target, poh.target);
+    await poh.connect(governor).changeForkModule(forkModule.target);
+  });
+
+  // Check functions specific to the extended version.
+  it("Should return correct initial value", async function () {
+    expect(await pohOld.isRegistered(requester.address)).to.equal(true, "Profile should be registered in old PoH");
+    expect(await forkModule.isRegistered(requester.address)).to.equal(
+      true,
+      "Profile should be registered in fork module"
+    );
+    expect(await forkModule.proofOfHumanityV1()).to.equal(pohOld.target, "Wrong Poh V1 address");
+    expect(await forkModule.proofOfHumanityV2()).to.equal(poh.target, "Wrong Poh V2 address");
+    expect(await forkModule.forkTime()).to.not.equal(0, "Fork time should be set");
+
+    const submissionDuration = await pohOld.submissionDuration();
+    expect(await forkModule.submissionDuration()).to.equal(submissionDuration, "Wrong submission duration");
+
+    const submissionTime = (await pohOld.getSubmissionInfo(requester.address))[1];
+    const submissionInfo = await forkModule.getSubmissionInfo(requester.address);
+    expect(submissionInfo[0]).to.equal(true, "Profile should be considered registered");
+    expect(submissionInfo[1]).to.equal(
+      submissionTime + submissionDuration,
+      "Incorrect expiration time returned for profile"
+    );
+
+    // Check initialize modifier
+    await expect(forkModule.connect(governor).initialize(pohOld.target, poh.target)).to.be.revertedWithoutReason();
+
+    expect(await poh.isHuman(requester.address)).to.equal(true, "Profile should be registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(true, "Profile should be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(requester.address, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(
+      requester.address.toLowerCase(),
+      "Incorrect humanity Id to address"
+    );
+
+    expect((await poh.getHumanityInfo(requester.address))[3]).to.equal(
+      submissionTime + submissionDuration,
+      "Incorrect expiration time for V1 profile"
+    );
+    expect((await poh.getHumanityInfo(requester.address))[4]).to.equal(
+      requester.address,
+      "Incorrect owner of V1 profile"
+    );
+  });
+
+  it("Should return correct values for profile registered after fork", async function () {
+    await pohOld.connect(governor).addSubmissionManually([requester2.address], [""], [""]);
+    expect(await pohOld.isRegistered(requester2.address)).to.equal(true, "Profile should be registered in old PoH");
+
+    expect(await forkModule.isRegistered(requester2.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester2.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+
+    expect(await poh.isHuman(requester2.address)).to.equal(false, "Profile should not be considered registered");
+    expect(await poh.isClaimed(requester2.address)).to.equal(false, "Profile should not be considered claimed");
+    expect(await poh.boundTo(requester2.address)).to.equal(AddressZero, "Incorrect bound address");
+    expect(await poh.humanityOf(requester2.address)).to.equal(AddressZero, "Incorrect humanity Id to address");
+
+    expect((await poh.getHumanityInfo(requester2.address))[3]).to.equal(
+      0,
+      "Incorrect expiration time for V1 profile. Should be 0"
+    );
+    expect((await poh.getHumanityInfo(requester2.address))[4]).to.equal(
+      AddressZero,
+      "Incorrect owner of V1 profile. Should be 0"
+    );
+  });
+
+  it("Should return correct values for expired profile", async function () {
+    await network.provider.send("evm_increaseTime", [submissionDuration + 1]);
+    // Send a random tx to trigger new time increase for view functions
+    await poh.connect(governor).changeMetaEvidence("1", "2");
+
+    expect(await forkModule.isRegistered(requester.address)).to.equal(false, "Profile should be expired");
+    expect((await forkModule.getSubmissionInfo(requester.address))[0]).to.equal(false, "Profile should be expired");
+
+    expect(await poh.isHuman(requester.address)).to.equal(false, "Profile should not be considered registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(false, "Profile should not be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(AddressZero, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(AddressZero, "Incorrect humanity Id to address");
+
+    expect((await poh.getHumanityInfo(requester.address))[3]).to.equal(
+      0,
+      "Incorrect expiration time for V1 profile. Should be 0"
+    );
+    expect((await poh.getHumanityInfo(requester.address))[4]).to.equal(
+      AddressZero,
+      "Incorrect owner of V1 profile. Should be 0"
+    );
+  });
+
+  it("Check permissions", async function () {
+    await expect(forkModule.connect(governor).remove(requester.address)).to.be.revertedWith("!poh");
+
+    await expect(forkModule.connect(governor).tryRemove(requester.address)).to.be.revertedWith("!poh");
+  });
+
+  it("Check crosschains functions", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    if (latestBlock === null) {
+      throw new Error("Failed to retrieve the latest block");
+    }
+    // Get the current timestamp from the latest block
+    const currentTimestamp = latestBlock.timestamp;
+    const expirationTime = currentTimestamp + submissionDuration; // Increase for submission duration
+    // Should not emit since profile is already registered
+    await expect(
+      poh.connect(crosschainMock).ccGrantHumanity(requester.address, requester.address, expirationTime)
+    ).to.not.emit(poh, "HumanityGrantedDirectly");
+
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address))
+      .to.emit(poh, "HumanityDischargedDirectly")
+      .withArgs(requester.address.toLowerCase());
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+
+    // Check 2nd time
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWith("removed!");
+
+    // Check on a profile registered after fork
+    await pohOld.connect(governor).addSubmissionManually([requester2.address], [""], [""]);
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester2.address)).to.be.revertedWith(
+      "Not registered, expired or submitted after the fork!"
+    );
+  });
+
+  it("Should not discharge humanity while having an active request", async function () {
+    await poh.connect(other).revokeHumanity(requester.address, "123", { value: requesterTotalCost });
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWithoutReason();
+  });
+
+  it("Should not discharge humanity while vouching", async function () {
+    await poh.connect(requester2).claimHumanity(requester.address, evidence, name, { value: requesterTotalCost });
+    await poh.connect(governor).changeRequiredNumberOfVouches(1);
+
+    await poh.connect(requester).addVouch(requester2.address, requester.address);
+    await poh.connect(governor).advanceState(requester2.address, [requester.address], []);
+    await expect(poh.connect(crosschainMock).ccDischargeHumanity(requester.address)).to.be.revertedWithoutReason();
+  });
+
+  it("Should delete V1 profile after successful renewal (execute)", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    if (latestBlock === null) {
+      throw new Error("Failed to retrieve the latest block");
+    }
+    const currentTimestamp = latestBlock.timestamp;
+    const expirationTime = currentTimestamp + submissionDuration;
+    await poh.connect(crosschainMock).ccGrantHumanity(voucher1.address, voucher1.address, expirationTime);
+    await poh.connect(governor).changeRequiredNumberOfVouches(1);
+
+    await expect(
+      poh.connect(requester).renewHumanity("Still human", { value: requesterTotalCost })
+    ).to.be.revertedWithoutReason();
+
+    await network.provider.send("evm_increaseTime", [submissionDuration + 1 - renewalPeriodDuration]);
+    await poh.connect(requester).renewHumanity("Still human", { value: requesterTotalCost });
+
+    // Check that request struct works
+    const requestInfo = await poh.getRequestInfo(requester.address, 0);
+    expect(requestInfo[5]).to.equal(requester.address, "Incorrect requester stored");
+    expect(requestInfo[7]).to.equal(Status.Vouching, "Status should not change");
+
+    await poh.connect(voucher1).addVouch(requester.address, requester.address);
+    await poh.connect(governor).advanceState(requester.address, [voucher1.address], []);
+
+    await network.provider.send("evm_increaseTime", [challengePeriodDuration + 1]);
+    await poh.connect(governor).executeRequest(requester.address, 0);
+
+    const humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[3]).to.not.equal(0, "Expiration time should be set");
+    expect(humanityInfo[4]).to.equal(requester.address, "Incorrect owner in V2 contract");
+
+    expect(await poh.isHuman(requester.address)).to.equal(true, "Profile should be registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(true, "Profile should be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(requester.address, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(
+      requester.address.toLowerCase(),
+      "Incorrect humanity Id to address"
+    );
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+    expect(await forkModule.isRegistered(requester2.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester2.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+  });
+
+  it("Should delete V1 profile after successful renewal (rule)", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    if (latestBlock === null) {
+      throw new Error("Failed to retrieve the latest block");
+    }
+    const currentTimestamp = latestBlock.timestamp;
+    const expirationTime = currentTimestamp + submissionDuration;
+    await poh.connect(crosschainMock).ccGrantHumanity(voucher1.address, voucher1.address, expirationTime);
+    await poh.connect(governor).changeRequiredNumberOfVouches(1);
+
+    await network.provider.send("evm_increaseTime", [submissionDuration + 1 - renewalPeriodDuration]);
+    await poh.connect(requester).renewHumanity("Still human", { value: requesterTotalCost });
+
+    await poh.connect(voucher1).addVouch(requester.address, requester.address);
+    await poh.connect(governor).advanceState(requester.address, [voucher1.address], []);
+    // Waste all 4 reasons to check
+    await poh
+      .connect(challenger1)
+      .challengeRequest(requester.address, 0, Reason.IncorrectSubmission, "Suspicious human", {
+        value: arbitrationCost,
+      });
+    await arbitrator.connect(governor).giveRuling(1, Party.Requester);
+    await poh
+      .connect(challenger1)
+      .challengeRequest(requester.address, 0, Reason.IdentityTheft, "Suspicious human", { value: arbitrationCost });
+    await arbitrator.connect(governor).giveRuling(2, Party.Requester);
+    await poh
+      .connect(challenger1)
+      .challengeRequest(requester.address, 0, Reason.SybilAttack, "Suspicious human", { value: arbitrationCost });
+    await arbitrator.connect(governor).giveRuling(3, Party.Requester);
+    await poh
+      .connect(challenger1)
+      .challengeRequest(requester.address, 0, Reason.Deceased, "Suspicious human", { value: arbitrationCost });
+
+    await arbitrator.connect(governor).giveRuling(4, Party.Requester);
+
+    const humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[3]).to.not.equal(0, "Expiration time should be set");
+    expect(humanityInfo[4]).to.equal(requester.address, "Incorrect owner in V2 contract");
+
+    expect(await poh.isHuman(requester.address)).to.equal(true, "Profile should be registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(true, "Profile should be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(requester.address, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(
+      requester.address.toLowerCase(),
+      "Incorrect humanity Id to address"
+    );
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+    expect(await forkModule.isRegistered(requester2.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester2.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+  });
+
+  it("Should delete V1 profile after successful revocation (execute)", async function () {
+    await poh.connect(other).revokeHumanity(requester.address, "Bad human", { value: requesterTotalCost });
+
+    // Check that request struct works
+    const requestInfo = await poh.getRequestInfo(requester.address, 0);
+    expect(requestInfo[5]).to.equal(other.address, "Incorrect requester stored");
+    expect(requestInfo[7]).to.equal(Status.Resolving, "Status should not change");
+
+    let humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[1]).to.equal(true, "Should be pending revocation");
+    expect(humanityInfo[2]).to.equal(1, "Number of pending requests incorrect");
+
+    await network.provider.send("evm_increaseTime", [challengePeriodDuration + 1]);
+
+    await expect(poh.connect(governor).executeRequest(requester.address, 0))
+      .to.emit(poh, "HumanityRevoked")
+      // Convert to lower case to match bytes20
+      .withArgs(requester.address.toLowerCase(), 0);
+
+    humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[1]).to.equal(false, "Pending revocation should be false");
+    expect(humanityInfo[2]).to.equal(0, "Incorrect number of active requests for profile");
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+    expect(await forkModule.isRegistered(requester2.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester2.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+  });
+
+  it("Should delete V1 profile after successful revocation (rule)", async function () {
+    await poh.connect(other).revokeHumanity(requester.address, "Bad human", { value: requesterTotalCost });
+
+    let humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[1]).to.equal(true, "Should be pending revocation");
+    expect(humanityInfo[2]).to.equal(1, "Number of pending requests incorrect");
+
+    await poh.connect(challenger1).challengeRequest(requester.address, 0, Reason.None, "", { value: arbitrationCost });
+    await arbitrator.connect(governor).giveRuling(1, Party.Requester);
+
+    humanityInfo = await poh.getHumanityInfo(requester.address);
+    expect(humanityInfo[1]).to.equal(false, "Pending revocation should be false");
+    expect(humanityInfo[2]).to.equal(0, "Incorrect number of active requests for profile");
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+    expect(await forkModule.isRegistered(requester2.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester2.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+  });
+
+  it("Should delete V1 profile for vouching for bad profile", async function () {
+    // Pre-emptively register a vouching profile.
+    const latestBlock = await ethers.provider.getBlock("latest");
+    if (latestBlock === null) {
+      throw new Error("Failed to retrieve the latest block");
+    }
+    const currentTimestamp = latestBlock.timestamp;
+    const expirationTime = currentTimestamp + submissionDuration;
+    await poh.connect(crosschainMock).ccGrantHumanity(voucher1.address, voucher1.address, expirationTime);
+    await poh.connect(governor).changeRequiredNumberOfVouches(1);
+
+    await poh.connect(requester2).claimHumanity(requester2.address, evidence, name, { value: requesterTotalCost });
+    await poh.connect(requester).addVouch(requester2.address, requester2.address);
+    await poh.connect(governor).advanceState(requester2.address, [requester.address], []);
+
+    await poh
+      .connect(challenger1)
+      .challengeRequest(requester2.address, 0, Reason.IdentityTheft, "Suspicious human", { value: arbitrationCost });
+
+    // Make it so one of the vouchers is in the middle of reapplication process.
+    await network.provider.send("evm_increaseTime", [submissionDuration + 1 - renewalPeriodDuration]);
+    // Change required number of vouches to 1 for convenience.
+    await poh.connect(requester).renewHumanity("Still human", { value: requesterTotalCost });
+    expect(await poh.getClaimerRequestId(requester.address)).to.equal(0, "Request id should be 0");
+
+    await poh.connect(voucher1).addVouch(requester.address, requester.address);
+    await poh.connect(governor).advanceState(requester.address, [voucher1.address], []);
+
+    await arbitrator.connect(governor).giveRuling(1, Party.Challenger);
+
+    await expect(poh.connect(governor).processVouches(requester2.address, 0, 1))
+      .to.emit(poh, "HumanityDischargedDirectly")
+      .withArgs(requester.address.toLowerCase());
+
+    const requestInfo = await poh.getRequestInfo(requester.address, 0);
+    expect(requestInfo[0]).to.equal(true, "Vouch should be punished");
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+
+    expect(await forkModule.isRegistered(requester.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+
+    expect(await poh.isHuman(requester.address)).to.equal(false, "Profile should not be considered registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(false, "Profile should not be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(AddressZero, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(AddressZero, "Incorrect humanity Id to address");
+
+    // Finish the renewal process to see that profile is still not registered
+    await network.provider.send("evm_increaseTime", [challengePeriodDuration + 1]);
+    await poh.connect(governor).executeRequest(requester.address, 0);
+
+    expect(await forkModule.removed(requester.address)).to.equal(true, "Should be removed in fork module");
+    expect(await forkModule.isRegistered(requester.address)).to.equal(
+      false,
+      "Profile should not be registered in fork module"
+    );
+    expect((await forkModule.getSubmissionInfo(requester.address))[0]).to.equal(
+      false,
+      "Profile should not be considered registered in fork module"
+    );
+
+    expect(await poh.isHuman(requester.address)).to.equal(false, "Profile should not be considered registered");
+    expect(await poh.isClaimed(requester.address)).to.equal(false, "Profile should not be considered claimed");
+    expect(await poh.boundTo(requester.address)).to.equal(AddressZero, "Incorrect bound address");
+    expect(await poh.humanityOf(requester.address)).to.equal(AddressZero, "Incorrect humanity Id to address");
   });
 });
