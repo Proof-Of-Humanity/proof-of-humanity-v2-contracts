@@ -5,6 +5,8 @@ export interface AddressSet {
     CC_Implementation: string;
     GATEWAY: string;
     LEGACY: string;
+    FORK_MODULE: string;
+    PROXY_TOKEN: string;
 }
 
 export interface AddressSetFixed {

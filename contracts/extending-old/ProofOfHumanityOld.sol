@@ -1243,26 +1243,6 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
         return request.challengeDuplicates[_duplicateID];
     }
 
-    /** @dev Get the contributions made by a party for a given round of a given challenge of a request.
-     *  @param _submissionID The address of the submission.
-     *  @param _requestID The request to query.
-     *  @param _challengeID the challenge to query.
-     *  @param _round The round to query.
-     *  @param _contributor The address of the contributor.
-     */
-    function getContributions(
-        address _submissionID,
-        uint256 _requestID,
-        uint256 _challengeID,
-        uint256 _round,
-        address _contributor
-    ) external view returns (uint256[3] memory contributions) {
-        Request storage request = submissions[_submissionID].requests[_requestID];
-        Challenge storage challenge = request.challenges[_challengeID];
-        Round storage round = challenge.rounds[_round];
-        contributions = round.contributions[_contributor];
-    }
-
     /** @dev Return the information of the submission. Includes length of requests array.
      *  @param _submissionID The address of the queried submission.
      */
@@ -1291,75 +1271,6 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
         );
     }
 
-    /** @dev Get the information of a particular challenge of the request.
-     *  @param _submissionID The address of the queried submission.
-     *  @param _requestID The request to query.
-     *  @param _challengeID The challenge to query.
-     */
-    function getChallengeInfo(
-        address _submissionID,
-        uint256 _requestID,
-        uint256 _challengeID
-    )
-        external
-        view
-        returns (
-            uint16 lastRoundID,
-            address challenger,
-            uint256 disputeID,
-            Party ruling,
-            uint64 duplicateSubmissionIndex
-        )
-    {
-        Request storage request = submissions[_submissionID].requests[_requestID];
-        Challenge storage challenge = request.challenges[_challengeID];
-        return (
-            challenge.lastRoundID,
-            challenge.challenger,
-            challenge.disputeID,
-            challenge.ruling,
-            challenge.duplicateSubmissionIndex
-        );
-    }
-
-    /** @dev Get information of a request of a submission.
-     *  @param _submissionID The address of the queried submission.
-     *  @param _requestID The request
-     */
-    function getRequestInfo(
-        address _submissionID,
-        uint256 _requestID
-    )
-        external
-        view
-        returns (
-            bool disputed,
-            bool resolved,
-            bool requesterLost,
-            Reason currentReason,
-            uint16 nbParallelDisputes,
-            uint16 lastChallengeID,
-            uint16 arbitratorDataID,
-            address payable requester,
-            address payable ultimateChallenger,
-            uint8 usedReasons
-        )
-    {
-        Request storage request = submissions[_submissionID].requests[_requestID];
-        return (
-            request.disputed,
-            request.resolved,
-            request.requesterLost,
-            request.currentReason,
-            request.nbParallelDisputes,
-            request.lastChallengeID,
-            request.arbitratorDataID,
-            request.requester,
-            request.ultimateChallenger,
-            request.usedReasons
-        );
-    }
-
     /** @dev Get the number of vouches of a particular request.
      *  @param _submissionID The address of the queried submission.
      *  @param _requestID The request to query.
@@ -1367,24 +1278,5 @@ contract ProofOfHumanityOld is IArbitrable, IEvidence {
     function getNumberOfVouches(address _submissionID, uint256 _requestID) external view returns (uint256) {
         Request storage request = submissions[_submissionID].requests[_requestID];
         return request.vouches.length;
-    }
-
-    /** @dev Get the information of a round of a request.
-     *  @param _submissionID The address of the queried submission.
-     *  @param _requestID The request to query.
-     *  @param _challengeID The challenge to query.
-     *  @param _round The round to query.
-     */
-    function getRoundInfo(
-        address _submissionID,
-        uint256 _requestID,
-        uint256 _challengeID,
-        uint256 _round
-    ) external view returns (bool appealed, uint256[3] memory paidFees, Party sideFunded, uint256 feeRewards) {
-        Request storage request = submissions[_submissionID].requests[_requestID];
-        Challenge storage challenge = request.challenges[_challengeID];
-        Round storage round = challenge.rounds[_round];
-        appealed = _round < (challenge.lastRoundID);
-        return (appealed, round.paidFees, round.sideFunded, round.feeRewards);
     }
 }
