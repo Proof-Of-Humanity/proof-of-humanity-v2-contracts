@@ -44,6 +44,7 @@ contract ProofOfHumanityProxyV2 {
      */
     constructor(IProofOfHumanity _proofOfHumanity) {
         proofOfHumanity = _proofOfHumanity;
+        governor = msg.sender;
     }
 
 
@@ -58,7 +59,6 @@ contract ProofOfHumanityProxyV2 {
      *  @param _governor The address of the new governor.
      */
     function changeGovernor(address _governor) external onlyGovernor {
-        //require(msg.sender == governor, "The caller must be the governor.");
         governor = _governor;
     }
     
