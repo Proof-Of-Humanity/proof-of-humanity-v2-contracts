@@ -16,7 +16,7 @@ export const Addresses: Record<number, AddressSet> = {
     FORK_MODULE: "0x068a27Db9c3B8595D03be263d52c813cb2C99cCB",
     //FORK_Implementation: "0xfd6a2eDAeef62E9cd828053fdd0d944Ff04a4f66",
     //FORK_ADMIN: "0x6DeD4EBAaB8011F8cbf223bb36B82bcDd363179C",
-    PROXY_TOKEN: "0x78a66Ed4F4A91d3378938D308664F2cB8E5ed014"
+    PROXY_TOKEN: "0x134e1B6F6665329D16753973AbfFD8aD8BcF7D30"
   },
   [Chain.GNOSIS]: {
     // Complete while the corresponding scripts are executed
@@ -29,6 +29,6 @@ export const Addresses: Record<number, AddressSet> = {
     //PROXY_ADMIN: "0xdEF33793a7924f876b20BE435Da5C234CE60a437",
     //PROXY_ADMIN_CC: "0x35eC1E9abb85365520CA0F099859064CE1678094",
     FORK_MODULE: "0x",
-    PROXY_TOKEN: "0x068a27Db9c3B8595D03be263d52c813cb2C99cCB"
+    PROXY_TOKEN: "0xBc966489400c7D0322f2E93Cf75345360F080799"
   },
 };
