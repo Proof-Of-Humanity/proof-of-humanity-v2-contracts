@@ -1,12 +1,18 @@
 # Proof-of-Humanity v2 - Contracts
 
+## Integration guidance
+
+Integrations should use `CrossChainProofOfHumanity`, not `ProofOfHumanity`.
+
+`ProofOfHumanity` and `ProofOfHumanityExtended` are local registry contracts. They are not the recommended integration surface because humanity state is synchronized across chains through `CrossChainProofOfHumanity`.
+
 ### Main Contracts on Ethereum Mainnet and side chains (Gnosis)
 - `ProofOfHumanity`: Main v2 contract deployed only on sidechains, gnosis in first time.
 - `ProofOfHumanityExtended`: Main v2 contract deployed on ethereum mainnet only. It is similar to the `ProofOfHumanity` deployed on sidechains with the additional capability of integrating v1 profiles.
 
 
 ### Contracts on both Ethereum Mainnet and side chains (Gnosis)
-- `CrossChainProofOfHumanity`: Crosschain capabilities for the main contracts.
+- `CrossChainProofOfHumanity`: Crosschain capabilities for the main contracts. This is the contract that integrations should use.
 - `AMBBridgeGateway`: Connects to the corresponding Arbitrary Message Bridge in this chain, to the CrossChainProofOfHumanity Proxy and to the foreign gateway contract (deployed on the side chain).
 - `IBridgeGateway`: The gateway's interface.
 
@@ -25,4 +31,3 @@ Other contracts in `libraries` and `interfaces` are also relevant for the launch
 ### Schemma (revisited) of the smart contracts for the cross-chain version of Proof-of-Humanity
 
 ![image](https://user-images.githubusercontent.com/47434163/161445069-c6207d96-0477-47bb-b374-36828a7c150f.png)
-
