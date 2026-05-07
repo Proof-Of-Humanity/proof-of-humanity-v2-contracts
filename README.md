@@ -4,6 +4,12 @@ Smart contracts for the cross-chain version of Proof-of-Humanity
 
 ![image](https://user-images.githubusercontent.com/47434163/161445069-c6207d96-0477-47bb-b374-36828a7c150f.png)
 
+### Integration guidance
+
+Integrations should use `CrossChainProofOfHumanity`, not the chain-specific `ProofOfHumanity` contracts.
+
+`ProofOfHumanity` and `ProofOfHumanityExtended` are the local registry contracts for each chain, but external integrations should read humanity state through the deployed cross-chain proxy for the target chain.
+
 ### Install dependencies
 ```shell
 yarn
@@ -31,11 +37,11 @@ Other hardhat commands can be searched in the hardhat documentation.
 ### - ETHEREUM:
 
 Running script `deploy-extended mainnet`, the main PoH contracts (proxy and implementation) are deployed on Ethereum mainnet. 
-- POH (`ProofOfHumanityExtended.sol`): 0xbE9834097A4E97689d9B667441acafb456D0480A
+- POH (`ProofOfHumanityExtended.sol`, local registry; do not use for integrations): 0xbE9834097A4E97689d9B667441acafb456D0480A
 - POH_Implementation: 0x9EcDfADA6376D221Ed1513c9F52cC44a39E89657
 
 Running script `deploy-ccpoh mainnet`, the cross chain contracts (proxy and implementation) are deployed on Ethereum mainnet. 
-- CROSS_CHAIN (`CrossChainProofOfHumanity.sol`): 0xa478095886659168E8812154fB0DE39F103E74b2
+- CROSS_CHAIN (`CrossChainProofOfHumanity.sol`; use this for integrations): 0xa478095886659168E8812154fB0DE39F103E74b2
 - CC_Implementation: 0x7BBf4551E1324CE7F87050377aE3EF645F08DBfd
 
 Running script `deploy-gateway mainnet` will deploy the gateway on Ethereum mainnet necessary for interaction with the AMB Bridge.
@@ -52,11 +58,11 @@ Others (no need to deploy manually):
 ### - GNOSIS:
 
 Running script `deploy-poh gnosis`, the main PoH contracts (proxy and implementation) are deployed on Gnosis. 
-- POH(`ProofOfHumanity.sol`): 0xa4AC94C4fa65Bb352eFa30e3408e64F72aC857bc
+- POH(`ProofOfHumanity.sol`, local registry; do not use for integrations): 0xa4AC94C4fa65Bb352eFa30e3408e64F72aC857bc
 - POH_Implementation: 0x85B88E38FB6cbc8059009902F76C47f902373F52
 
 Running script `deploy-ccpoh gnosis`, the cross chain contracts (proxy and implementation) are deployed on Gnosis. 
-- CROSS_CHAIN (`CrossChainProofOfHumanity.sol`): 0x16044E1063C08670f8653055A786b7CC2034d2b0
+- CROSS_CHAIN (`CrossChainProofOfHumanity.sol`; use this for integrations): 0x16044E1063C08670f8653055A786b7CC2034d2b0
 - CC_Implementation: 0x20C27AB7863dC31CEaBd300Fa2787B723D490162
 
 Running script `deploy-gateway gnosis` will deploy the gateway on Gnosis, necessary for interaction with the AMB Bridge deployed on Gnosis.
