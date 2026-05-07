@@ -1,6 +1,6 @@
 # Proof-of-Humanity v2 - Contracts
 
-### Integration guidance
+## Integration guidance
 
 Integrations should use `CrossChainProofOfHumanity`, not `ProofOfHumanity`.
 

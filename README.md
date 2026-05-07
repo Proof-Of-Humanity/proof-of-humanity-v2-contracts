@@ -4,7 +4,7 @@ Smart contracts for the cross-chain version of Proof-of-Humanity
 
 ![image](https://user-images.githubusercontent.com/47434163/161445069-c6207d96-0477-47bb-b374-36828a7c150f.png)
 
-### Integration guidance
+## Integration guidance
 
 Integrations should use `CrossChainProofOfHumanity`, not the chain-specific `ProofOfHumanity` contracts.
 
@@ -58,7 +58,7 @@ Others (no need to deploy manually):
 ### - GNOSIS:
 
 Running script `deploy-poh gnosis`, the main PoH contracts (proxy and implementation) are deployed on Gnosis. 
-- POH(`ProofOfHumanity.sol`, local registry; do not use for integrations): 0xa4AC94C4fa65Bb352eFa30e3408e64F72aC857bc
+- POH (`ProofOfHumanity.sol`, local registry; do not use for integrations): 0xa4AC94C4fa65Bb352eFa30e3408e64F72aC857bc
 - POH_Implementation: 0x85B88E38FB6cbc8059009902F76C47f902373F52
 
 Running script `deploy-ccpoh gnosis`, the cross chain contracts (proxy and implementation) are deployed on Gnosis. 
