@@ -61,7 +61,7 @@
     "@typechain/ethers-v6": "^0.5.1",
     "@typechain/hardhat": "^9.0.0",
     "ethers": "^6.7.1",
-    "hardhat": "^2.18.0",
+    "hardhat": "^2.22.15",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-deploy": "^0.12.4",
     "hardhat-deploy-ethers": "^0.4.1",
